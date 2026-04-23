@@ -1,0 +1,25 @@
+# Demo-only Render Blueprint.
+# This version uses Render Free without a persistent disk. Data can reset on redeploy/restart.
+services:
+  - type: web
+    name: nukhba-api-demo
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm run start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.16.0
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: DB_FILE
+        value: ./data/nukhba.sqlite
+      - key: CORS_ORIGIN
+        value: '*'
+      - key: AUTH_TOKEN_SECRET
+        generateValue: true
+      - key: AUTH_TOKEN_EXPIRES_IN
+        value: 8h

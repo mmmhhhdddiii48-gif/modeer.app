@@ -1,0 +1,25 @@
+{
+  "name": "nukhba-api-backend",
+  "version": "1.0.0",
+  "description": "Nukhba Backend API - GitHub and Render deploy-ready build.",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "private": true,
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "check:db": "node scripts/check-db.js",
+    "db:init": "node scripts/init-db.js",
+    "seed:agent": "node scripts/seed-agent.js",
+    "render:check": "node scripts/check-db.js"
+  },
+  "engines": {
+    "node": ">=22.16.0"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "helmet": "^8.0.0"
+  }
+}
