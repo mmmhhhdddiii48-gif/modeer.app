@@ -1,0 +1,67 @@
+Nukhba Render Backend Inspection & Live Modules Update
+
+Result:
+- This uploaded file IS the real Render backend source.
+- It includes src/server.js, src/app.js, routes, database schema, and Render deployment files.
+- It is suitable to update and redeploy on Render.
+
+Changed backend modules:
+1. Database schema
+   - Added location_updates table.
+   - Added day_closures table.
+
+2. Manager endpoints added/fixed:
+   - GET /manager/agents
+   - GET /manager/locations
+   - GET /manager/tracking
+   - GET /manager/location-updates
+   - POST /manager/day-close
+   - GET /manager/day-close
+   - GET /manager/reports/day-close
+   - GET /manager/sync
+
+3. Employee endpoints added/fixed:
+   - POST /employee/location
+   - POST /employee/locations
+   - GET /employee/locations
+   - GET /employee/sync
+
+4. Notification notes fix:
+   - Manager notification creation now accepts notes/note/details/message and stores it in message field.
+
+5. Day matching / close day:
+   - Manager can close a day by date.
+   - Backend summarizes incoming/outgoing totals, net, employee breakdown, and entries.
+   - Matching report is stored in day_closures.report_json.
+   - Daily entries for that date are marked closed.
+
+6. GPS:
+   - Employee can send latitude, longitude, accuracy, status, note.
+   - Manager can fetch latest employee locations for map display.
+
+7. Live refresh support:
+   - /manager/sync and /employee/sync provide one endpoint for polling/auto-refresh.
+   - This supports online updates without manual refresh when the apps poll every 5-10 seconds.
+
+Validation performed:
+- node --check on modified files.
+- npm run check:db succeeded.
+- Local server test succeeded on /health.
+- Login test succeeded with seeded employee.
+- POST /employee/location succeeded.
+- GET /manager/locations succeeded.
+- POST /manager/notifications accepted notes.
+- GET /employee/sync succeeded.
+- POST /manager/day-close succeeded.
+
+Important:
+- Render base URL remains unchanged in apps: https://modeer-app.onrender.com
+- This backend does not store large uploaded files in external storage yet.
+- Current attachment support can continue using message/daily-entry attachments_json for small encoded files only.
+- For real large image/PDF attachments, add Supabase Storage environment variables and upload logic later.
+
+Suggested Render deploy:
+- Upload this backend source to the GitHub repo connected to Render.
+- Do not upload node_modules.
+- Keep Persistent Disk if using SQLite on Render.
+- Redeploy the service.
