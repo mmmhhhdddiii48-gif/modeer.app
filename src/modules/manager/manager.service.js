@@ -140,6 +140,29 @@ function updateManagerAgentAccess(agentIdRaw, body) {
   return loadManagerAgentResponse(agentId);
 }
 
+
+function listManagerAgents() {
+  const rows = getDatabase().prepare(`
+    SELECT a.*, u.username, u.is_active, u.can_login, u.role
+    FROM agents a
+    LEFT JOIN users u ON u.id = a.user_id
+    ORDER BY a.id DESC
+    LIMIT 500
+  `).all();
+  return rows.map((row) => ({
+    user: serializeUser({
+      id: row.user_id,
+      username: row.username,
+      role: row.role || 'agent',
+      is_active: row.is_active,
+      can_login: row.can_login,
+      created_at: row.created_at,
+      updated_at: row.updated_at
+    }),
+    agent: serializeAgent(row)
+  }));
+}
+
 function loadManagerAgentResponse(agentId) {
   const agent = loadAgentOrFail(agentId);
   const user = loadUserOrFail(agent.user_id);
@@ -298,6 +321,7 @@ function handleSqliteConstraint(error) {
 }
 
 module.exports = {
+  listManagerAgents,
   createManagerAgent,
   updateManagerAgent,
   updateManagerAgentAccess

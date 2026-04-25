@@ -3,7 +3,7 @@ const path = require('node:path');
 const logger = require('../utils/logger');
 
 const SCHEMA_FILE = path.join(__dirname, 'schema.sql');
-const REQUIRED_TABLES = ['users', 'agents', 'system_settings', 'notifications', 'messages', 'daily_entries'];
+const REQUIRED_TABLES = ['users', 'agents', 'system_settings', 'notifications', 'messages', 'daily_entries', 'location_updates', 'day_closures'];
 
 function readSchemaSql() {
   return fs.readFileSync(SCHEMA_FILE, 'utf8');

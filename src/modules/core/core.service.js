@@ -104,7 +104,7 @@ function createNotificationForAgent(agentId, body) {
   const agent = loadAgentById(agentId || body?.agent_id);
   const title = safeString(body?.title);
   if (!title) throw httpError(400, 'VALIDATION_ERROR', 'title is required.');
-  const message = safeString(body?.message || body?.details);
+  const message = safeString(body?.message || body?.details || body?.notes || body?.note);
   const type = safeString(body?.type, 'general') || 'general';
   const priority = safeString(body?.priority, 'normal') || 'normal';
   const result = getDatabase().prepare(`
@@ -255,6 +255,167 @@ function listManagerDailyEntries(query = {}) {
   `).all(...params);
   return rows.map((row) => ({ ...serializeDailyEntry(row), agent_name: row.full_name || '', username: row.username || '' }));
 }
+
+function createLocationForUser(userId, body = {}) {
+  const agent = loadAgentByUserId(userId);
+  const latitude = Number(body.latitude ?? body.lat);
+  const longitude = Number(body.longitude ?? body.lng ?? body.lon);
+  const accuracy = Number(body.accuracy || 0) || 0;
+  const status = safeString(body.status, 'online') || 'online';
+  const note = safeString(body.note || body.description);
+  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
+    throw httpError(400, 'VALIDATION_ERROR', 'latitude is required and must be valid.');
+  }
+  if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+    throw httpError(400, 'VALIDATION_ERROR', 'longitude is required and must be valid.');
+  }
+  const result = getDatabase().prepare(`
+    INSERT INTO location_updates (user_id, agent_id, employee_id, latitude, longitude, accuracy, status, note)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(agent.user_id, agent.id, agent.employee_id, latitude, longitude, accuracy, status, note);
+  return serializeLocation(getDatabase().prepare('SELECT l.*, a.full_name FROM location_updates l LEFT JOIN agents a ON a.id = l.agent_id WHERE l.id = ?').get(Number(result.lastInsertRowid)));
+}
+function serializeLocation(row) {
+  return {
+    id: Number(row.id),
+    user_id: Number(row.user_id),
+    agent_id: Number(row.agent_id),
+    employee_id: row.employee_id,
+    agent_name: row.full_name || row.agent_name || '',
+    latitude: Number(row.latitude),
+    longitude: Number(row.longitude),
+    accuracy: Number(row.accuracy || 0),
+    status: row.status || 'online',
+    note: row.note || '',
+    created_at: row.created_at
+  };
+}
+function listManagerLocations(query = {}) {
+  const params = [];
+  let where = 'WHERE 1 = 1';
+  if (query.agent_id) { where += ' AND l.agent_id = ?'; params.push(normalizeId(query.agent_id, 'agent_id')); }
+  if (query.employee_id) { where += ' AND l.employee_id = ?'; params.push(safeString(query.employee_id)); }
+  const latestOnly = query.latest !== '0';
+  const sql = latestOnly ? `
+    SELECT l.*, a.full_name
+    FROM location_updates l
+    LEFT JOIN agents a ON a.id = l.agent_id
+    INNER JOIN (
+      SELECT agent_id, MAX(id) AS max_id FROM location_updates GROUP BY agent_id
+    ) x ON x.max_id = l.id
+    ${where}
+    ORDER BY l.id DESC
+    LIMIT 300
+  ` : `
+    SELECT l.*, a.full_name
+    FROM location_updates l
+    LEFT JOIN agents a ON a.id = l.agent_id
+    ${where}
+    ORDER BY l.id DESC
+    LIMIT 800
+  `;
+  return getDatabase().prepare(sql).all(...params).map(serializeLocation);
+}
+function listEmployeeLocations(userId, query = {}) {
+  const agent = loadAgentByUserId(userId);
+  const limit = Math.min(Math.max(Number(query.limit || 100), 1), 300);
+  return getDatabase().prepare(`
+    SELECT l.*, a.full_name
+    FROM location_updates l
+    LEFT JOIN agents a ON a.id = l.agent_id
+    WHERE l.agent_id = ?
+    ORDER BY l.id DESC
+    LIMIT ?
+  `).all(agent.id, limit).map(serializeLocation);
+}
+function summarizeDayEntries(closeDate) {
+  const entries = listManagerDailyEntries({ date: closeDate });
+  const totals = entries.reduce((acc, entry) => {
+    const type = entry.type === 'outgoing' ? 'outgoing' : 'incoming';
+    acc[type].count += 1;
+    acc[type].amount += Number(entry.amount || 0);
+    return acc;
+  }, { incoming: { count: 0, amount: 0 }, outgoing: { count: 0, amount: 0 } });
+  const byAgent = {};
+  for (const entry of entries) {
+    const key = String(entry.agent_id);
+    if (!byAgent[key]) byAgent[key] = {
+      agent_id: entry.agent_id,
+      employee_id: entry.employee_id,
+      agent_name: entry.agent_name || '',
+      incoming_count: 0,
+      incoming_amount: 0,
+      outgoing_count: 0,
+      outgoing_amount: 0
+    };
+    if (entry.type === 'outgoing') {
+      byAgent[key].outgoing_count += 1;
+      byAgent[key].outgoing_amount += Number(entry.amount || 0);
+    } else {
+      byAgent[key].incoming_count += 1;
+      byAgent[key].incoming_amount += Number(entry.amount || 0);
+    }
+  }
+  return {
+    date: closeDate,
+    totals,
+    net: Number(totals.incoming.amount || 0) - Number(totals.outgoing.amount || 0),
+    agents: Object.values(byAgent),
+    entries
+  };
+}
+function closeDay(body = {}) {
+  const closeDate = safeString(body.date || body.close_date, new Date().toISOString().slice(0, 10));
+  const notes = safeString(body.notes || body.note);
+  const report = summarizeDayEntries(closeDate);
+  const db = getDatabase();
+  db.prepare(`
+    INSERT INTO day_closures (close_date, closed_by, notes, report_json, created_at)
+    VALUES (?, 'manager', ?, ?, datetime('now'))
+    ON CONFLICT(close_date) DO UPDATE SET
+      notes = excluded.notes,
+      report_json = excluded.report_json,
+      created_at = datetime('now')
+  `).run(closeDate, notes, JSON.stringify(report));
+  db.prepare("UPDATE daily_entries SET status = 'closed', updated_at = datetime('now') WHERE entry_date = ?").run(closeDate);
+  const row = db.prepare('SELECT * FROM day_closures WHERE close_date = ? LIMIT 1').get(closeDate);
+  return serializeDayClosure(row);
+}
+function serializeDayClosure(row) {
+  return {
+    id: Number(row.id),
+    date: row.close_date,
+    closed_by: row.closed_by || 'manager',
+    notes: row.notes || '',
+    report: safeParseJSON(row.report_json, {}),
+    created_at: row.created_at
+  };
+}
+function listDayClosures(query = {}) {
+  const params = [];
+  let where = 'WHERE 1 = 1';
+  if (query.date) { where += ' AND close_date = ?'; params.push(safeString(query.date)); }
+  return getDatabase().prepare(`SELECT * FROM day_closures ${where} ORDER BY close_date DESC, id DESC LIMIT 200`).all(...params).map(serializeDayClosure);
+}
+function getManagerSync(query = {}) {
+  const date = safeString(query.date || new Date().toISOString().slice(0, 10));
+  return {
+    notifications: listManagerNotifications(),
+    daily_entries: listManagerDailyEntries(date ? { date } : {}),
+    locations: listManagerLocations({ latest: '1' }),
+    day_closures: listDayClosures({ date })
+  };
+}
+function getEmployeeSync(userId) {
+  return {
+    notifications: listNotificationsForUser(Number(userId), { limit: 100 }),
+    unread_notifications: unreadNotificationCount(Number(userId)),
+    messages: listMessagesForUser(Number(userId)).messages,
+    daily_entries: listDailyEntriesForUser(Number(userId)).entries,
+    locations: listEmployeeLocations(Number(userId), { limit: 20 })
+  };
+}
+
 function getEmployeeBootstrap(userId) {
   const context = getCurrentAgentContext(userId);
   return {
@@ -263,7 +424,8 @@ function getEmployeeBootstrap(userId) {
     unread_notifications: unreadNotificationCount(Number(userId)),
     notifications: listNotificationsForUser(Number(userId), { limit: 50 }),
     messages: listMessagesForUser(Number(userId)).messages,
-    daily_entries: listDailyEntriesForUser(Number(userId)).entries
+    daily_entries: listDailyEntriesForUser(Number(userId)).entries,
+    locations: listEmployeeLocations(Number(userId), { limit: 20 })
   };
 }
 module.exports = {
@@ -281,5 +443,12 @@ module.exports = {
   createDailyEntryForUser,
   listDailyEntriesForUser,
   listManagerDailyEntries,
+  createLocationForUser,
+  listManagerLocations,
+  listEmployeeLocations,
+  closeDay,
+  listDayClosures,
+  getManagerSync,
+  getEmployeeSync,
   getEmployeeBootstrap
 };

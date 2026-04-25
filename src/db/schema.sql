@@ -127,3 +127,33 @@ END;
 
 INSERT OR IGNORE INTO system_settings (key, value)
 VALUES ('manager_profile', '{"name":"المدير","brand":"تطبيق النخبة","company":"تطبيق النخبة","phone":"","email":"","role":"مدير"}');
+
+
+-- Live modules: GPS tracking and day close / matching reports.
+CREATE TABLE IF NOT EXISTS location_updates (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER NOT NULL,
+  agent_id INTEGER NOT NULL,
+  employee_id TEXT NOT NULL,
+  latitude REAL NOT NULL,
+  longitude REAL NOT NULL,
+  accuracy REAL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'online',
+  note TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  CONSTRAINT fk_location_updates_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  CONSTRAINT fk_location_updates_agent_id FOREIGN KEY (agent_id) REFERENCES agents(id) ON UPDATE CASCADE ON DELETE RESTRICT
+);
+CREATE INDEX IF NOT EXISTS idx_location_updates_agent_id ON location_updates(agent_id);
+CREATE INDEX IF NOT EXISTS idx_location_updates_created_at ON location_updates(created_at);
+
+CREATE TABLE IF NOT EXISTS day_closures (
+  id INTEGER PRIMARY KEY,
+  close_date TEXT NOT NULL,
+  closed_by TEXT NOT NULL DEFAULT 'manager',
+  notes TEXT,
+  report_json TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  CONSTRAINT uq_day_closures_close_date UNIQUE (close_date)
+);
+CREATE INDEX IF NOT EXISTS idx_day_closures_date ON day_closures(close_date);

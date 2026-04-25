@@ -10,7 +10,10 @@ const {
   createMessageForAgent,
   markMessagesReadForAgent,
   createDailyEntryForUser,
-  listDailyEntriesForUser
+  listDailyEntriesForUser,
+  createLocationForUser,
+  listEmployeeLocations,
+  getEmployeeSync
 } = require('../core/core.service');
 const { getCurrentAgentContext } = require('../auth/auth.service');
 
@@ -56,6 +59,27 @@ employeeRouter.get('/daily-entries', asyncHandler((req, res) => {
 employeeRouter.post('/daily-entries', asyncHandler((req, res) => {
   const data = createDailyEntryForUser(Number(req.auth.sub), req.body, 'agent');
   res.status(201).json({ ok: true, data });
+}));
+
+
+employeeRouter.post('/location', asyncHandler((req, res) => {
+  const data = createLocationForUser(Number(req.auth.sub), req.body || {});
+  res.status(201).json({ ok: true, data });
+}));
+
+employeeRouter.post('/locations', asyncHandler((req, res) => {
+  const data = createLocationForUser(Number(req.auth.sub), req.body || {});
+  res.status(201).json({ ok: true, data });
+}));
+
+employeeRouter.get('/locations', asyncHandler((req, res) => {
+  const data = listEmployeeLocations(Number(req.auth.sub), req.query || {});
+  res.json({ ok: true, data });
+}));
+
+employeeRouter.get('/sync', asyncHandler((req, res) => {
+  const data = getEmployeeSync(Number(req.auth.sub));
+  res.json({ ok: true, data });
 }));
 
 module.exports = { employeeRouter };
