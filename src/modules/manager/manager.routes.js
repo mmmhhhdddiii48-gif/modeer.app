@@ -1,5 +1,6 @@
 const express = require('express');
 const { asyncHandler } = require('../../utils/asyncHandler');
+const { httpError } = require('../../utils/httpError');
 const {
   listManagerAgents,
   createManagerAgent,
@@ -22,6 +23,12 @@ const {
 } = require('../core/core.service');
 
 const managerRouter = express.Router();
+
+function rejectMultipart(req) {
+  if (req.is('multipart/form-data')) {
+    throw httpError(415, 'UNSUPPORTED_MEDIA_TYPE', 'multipart/form-data is not supported. Send JSON with Base64 files or attachments.');
+  }
+}
 
 managerRouter.get('/agents', asyncHandler((_req, res) => {
   const data = listManagerAgents();
@@ -69,6 +76,7 @@ managerRouter.get('/agents/:id/messages', asyncHandler((req, res) => {
 }));
 
 managerRouter.post('/agents/:id/messages', asyncHandler((req, res) => {
+  rejectMultipart(req);
   const data = createMessageForAgent(req.params.id, req.body, 'manager', getManagerProfile().name);
   res.status(201).json({ ok: true, data });
 }));

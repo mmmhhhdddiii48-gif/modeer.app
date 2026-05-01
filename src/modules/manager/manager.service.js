@@ -10,14 +10,14 @@ function createManagerAgent(body) {
   const input = normalizeCreateInput(body);
   const db = getDatabase();
 
-  assertUsernameAvailable(input.username);
-  assertEmployeeIdAvailable(input.employee_id);
-
   let userId;
   let agentId;
 
   try {
     db.exec('BEGIN IMMEDIATE TRANSACTION');
+
+    assertUsernameAvailable(input.username);
+    assertEmployeeIdAvailable(input.employee_id);
 
     const userResult = db.prepare(`
       INSERT INTO users (username, password_hash, role, is_active, can_login)
@@ -254,7 +254,7 @@ function boolToInt(value) {
 function normalizeId(value, label) {
   const id = Number(value);
   if (!Number.isSafeInteger(id) || id < 1) {
-    throw httpError(400, 'VALIDATION_ERROR', `Invalid ${label}.`);
+    throw httpError(400, 'VALIDATION_ERROR', `Invalid ${label}. Use the internal numeric agent.id.`);
   }
   return id;
 }
@@ -304,16 +304,16 @@ function rollbackQuietly(db) {
 }
 
 function handleSqliteConstraint(error) {
-  const message = String(error?.message || '');
-  if (!message.includes('constraint')) return;
+  const message = String(error?.message || '').toLowerCase();
+  if (!message.includes('constraint') && !message.includes('unique')) return;
 
-  if (message.includes('users.username')) {
+  if (message.includes('users.username') || message.includes('uq_users_username')) {
     throw httpError(409, 'USERNAME_ALREADY_EXISTS', 'username already exists.');
   }
-  if (message.includes('agents.employee_id')) {
+  if (message.includes('agents.employee_id') || message.includes('uq_agents_employee_id')) {
     throw httpError(409, 'EMPLOYEE_ID_ALREADY_EXISTS', 'employee_id already exists.');
   }
-  if (message.includes('agents.user_id')) {
+  if (message.includes('agents.user_id') || message.includes('uq_agents_user_id')) {
     throw httpError(409, 'USER_ALREADY_LINKED_TO_AGENT', 'user is already linked to an agent.');
   }
 

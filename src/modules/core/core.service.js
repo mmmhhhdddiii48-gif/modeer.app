@@ -1,3 +1,4 @@
+const crypto = require('node:crypto');
 const { getDatabase } = require('../../db');
 const { httpError } = require('../../utils/httpError');
 const { getCurrentAgentContext } = require('../auth/auth.service');
@@ -20,22 +21,74 @@ function normalizeId(value, label = 'id') {
 }
 function boolToInt(value) { return value ? 1 : 0; }
 function serializeBool(value) { return Number(value) === 1; }
-function normalizeFiles(files) {
-  if (!Array.isArray(files)) return [];
-  return files.slice(0, 10).map((file) => ({
-    id: safeString(file.id) || `file_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-    name: safeString(file.name, 'file'),
-    type: safeString(file.type, 'application/octet-stream'),
-    size: Number(file.size || 0) || 0,
-    data: safeString(file.data),
-    created_at: safeString(file.created_at) || nowSql()
-  })).filter((file) => file.name || file.data);
+function normalizeFiles(files, options = {}) {
+  const strict = options.strict !== false;
+  if (files === undefined || files === null) return [];
+  if (!Array.isArray(files)) {
+    if (strict) throw httpError(400, 'INVALID_ATTACHMENTS_PAYLOAD', 'invalid attachments payload. Send files or attachments as an array.');
+    return [];
+  }
+
+  const normalized = [];
+  const seen = new Set();
+
+  for (const file of files.slice(0, 10)) {
+    if (!file || typeof file !== 'object') {
+      if (strict) throw httpError(400, 'INVALID_ATTACHMENTS_PAYLOAD', 'invalid attachments payload. Each attachment must be an object.');
+      continue;
+    }
+
+    const originalId = safeString(file.id);
+    const data = safeString(file.data);
+    const rawName = safeString(file.name);
+    const name = rawName || (data ? 'file' : '');
+    const type = safeString(file.type, 'application/octet-stream') || 'application/octet-stream';
+    const size = normalizeFileSize(file.size);
+
+    if (!name && !data) continue;
+
+    const dedupeKey = attachmentDedupeKey({ id: originalId, name, type, size, data });
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+
+    normalized.push({
+      id: originalId || `file_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      name,
+      type,
+      size,
+      data,
+      created_at: safeString(file.created_at) || nowSql()
+    });
+  }
+
+  return normalized;
 }
-function serializeAttachments(raw) { return safeParseJSON(raw, []); }
+
+function normalizeAttachmentPayload(body = {}) {
+  if (Object.prototype.hasOwnProperty.call(body || {}, 'files')) return normalizeFiles(body.files);
+  if (Object.prototype.hasOwnProperty.call(body || {}, 'attachments')) return normalizeFiles(body.attachments);
+  return [];
+}
+
+function normalizeFileSize(value) {
+  const size = Number(value || 0);
+  if (!Number.isFinite(size) || size < 0) return 0;
+  return Math.floor(size);
+}
+
+function attachmentDedupeKey(file) {
+  if (file.id) return `id:${file.id.toLowerCase()}`;
+  const basis = file.data
+    ? `data:${file.name}|${file.size}|${file.data}`
+    : `meta:${file.name}|${file.size}|${file.type}`;
+  return crypto.createHash('sha256').update(basis).digest('hex');
+}
+
+function serializeAttachments(raw) { return normalizeFiles(safeParseJSON(raw, []), { strict: false }); }
 function loadAgentById(agentId) {
-  const id = normalizeId(agentId, 'agent_id');
+  const id = normalizeId(agentId, 'agent id');
   const agent = getDatabase().prepare('SELECT * FROM agents WHERE id = ? LIMIT 1').get(id);
-  if (!agent) throw httpError(404, 'AGENT_NOT_FOUND', 'Agent was not found.');
+  if (!agent) throw httpError(404, 'AGENT_NOT_FOUND', 'agent not found. Use the internal numeric agent.id.');
   return agent;
 }
 function loadAgentByUserId(userId) {
@@ -158,10 +211,10 @@ function serializeMessage(row) {
   };
 }
 function createMessageForAgent(agentId, body, senderRole = 'manager', senderName = '') {
-  const agent = loadAgentById(agentId || body?.agent_id);
+  const agent = loadAgentById(agentId);
   const text = safeString(body?.text || body?.message);
-  const files = normalizeFiles(body?.files || body?.attachments || []);
-  if (!text && !files.length) throw httpError(400, 'VALIDATION_ERROR', 'text or files is required.');
+  const files = normalizeAttachmentPayload(body);
+  if (!text && !files.length) throw httpError(400, 'INVALID_MESSAGE_PAYLOAD', 'invalid message payload. text or files is required.');
   const isManager = senderRole === 'manager';
   const result = getDatabase().prepare(`
     INSERT INTO messages (user_id, agent_id, sender_role, sender_name, text, attachments_json, is_read_by_manager, is_read_by_agent)
@@ -221,7 +274,7 @@ function createDailyEntryForUser(userId, body, createdBy = 'agent') {
   const amount = Number(body?.amount || 0);
   const details = safeString(body?.details || body?.note || body?.description);
   const entryDate = safeString(body?.date || body?.entry_date, new Date().toISOString().slice(0, 10));
-  const files = normalizeFiles(body?.files || body?.attachments || []);
+  const files = normalizeAttachmentPayload(body);
   if (!details) throw httpError(400, 'VALIDATION_ERROR', 'details is required.');
   if (!Number.isFinite(amount) || amount <= 0) throw httpError(400, 'VALIDATION_ERROR', 'amount must be greater than zero.');
   const result = getDatabase().prepare(`

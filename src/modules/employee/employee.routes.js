@@ -1,6 +1,7 @@
 const express = require('express');
 const { requireAuth } = require('../auth/auth.middleware');
 const { asyncHandler } = require('../../utils/asyncHandler');
+const { httpError } = require('../../utils/httpError');
 const {
   getEmployeeBootstrap,
   getManagerProfile,
@@ -19,6 +20,12 @@ const { getCurrentAgentContext } = require('../auth/auth.service');
 
 const employeeRouter = express.Router();
 employeeRouter.use(requireAuth);
+
+function rejectMultipart(req) {
+  if (req.is('multipart/form-data')) {
+    throw httpError(415, 'UNSUPPORTED_MEDIA_TYPE', 'multipart/form-data is not supported. Send JSON with Base64 files or attachments.');
+  }
+}
 
 employeeRouter.get('/bootstrap', asyncHandler((req, res) => {
   res.json({ ok: true, data: getEmployeeBootstrap(Number(req.auth.sub)) });
@@ -46,6 +53,7 @@ employeeRouter.get('/messages', asyncHandler((req, res) => {
 }));
 
 employeeRouter.post('/messages', asyncHandler((req, res) => {
+  rejectMultipart(req);
   const context = getCurrentAgentContext(Number(req.auth.sub));
   const data = createMessageForAgent(context.agent.id, req.body, 'agent', context.agent.full_name);
   res.status(201).json({ ok: true, data });
@@ -57,6 +65,7 @@ employeeRouter.get('/daily-entries', asyncHandler((req, res) => {
 }));
 
 employeeRouter.post('/daily-entries', asyncHandler((req, res) => {
+  rejectMultipart(req);
   const data = createDailyEntryForUser(Number(req.auth.sub), req.body, 'agent');
   res.status(201).json({ ok: true, data });
 }));
