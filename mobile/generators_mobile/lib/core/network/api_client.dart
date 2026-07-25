@@ -49,9 +49,100 @@ final class ApiClient {
     return _unwrap(response.data);
   }
 
+  Future<void> logout(String refreshToken) async {
+    await _dio.post<Map<String, dynamic>>(
+      '${AppConfig.generatorsBasePath}/auth/logout',
+      data: {'refresh_token': refreshToken},
+    );
+  }
+
   Future<Map<String, dynamic>> me() async {
     final response = await _dio.get<Map<String, dynamic>>(
       '${AppConfig.generatorsBasePath}/auth/me',
+    );
+    return _unwrap(response.data);
+  }
+
+  Future<Map<String, dynamic>> getOwnerCollectors() async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '${AppConfig.generatorsBasePath}/owner/collectors',
+    );
+    return _unwrap(response.data);
+  }
+
+  Future<Map<String, dynamic>> createOwnerCollector(Map<String, dynamic> input) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '${AppConfig.generatorsBasePath}/owner/collectors',
+      data: input,
+    );
+    return _unwrap(response.data);
+  }
+
+  Future<Map<String, dynamic>> updateOwnerCollector(
+    String collectorId,
+    Map<String, dynamic> input,
+  ) async {
+    final response = await _dio.patch<Map<String, dynamic>>(
+      '${AppConfig.generatorsBasePath}/owner/collectors/$collectorId',
+      data: input,
+    );
+    return _unwrap(response.data);
+  }
+
+  Future<Map<String, dynamic>> updateOwnerCollectorStatus(
+    String collectorId,
+    String status,
+  ) async {
+    final response = await _dio.patch<Map<String, dynamic>>(
+      '${AppConfig.generatorsBasePath}/owner/collectors/$collectorId/status',
+      data: {'status': status},
+    );
+    return _unwrap(response.data);
+  }
+
+  Future<Map<String, dynamic>> updateOwnerCollectorPermissions(
+    String collectorId,
+    List<String> permissions,
+  ) async {
+    final response = await _dio.put<Map<String, dynamic>>(
+      '${AppConfig.generatorsBasePath}/owner/collectors/$collectorId/permissions',
+      data: {'permissions': permissions},
+    );
+    return _unwrap(response.data);
+  }
+
+  Future<Map<String, dynamic>> resetOwnerCollectorPassword(
+    String collectorId,
+    String newPassword,
+  ) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '${AppConfig.generatorsBasePath}/owner/collectors/$collectorId/reset-password',
+      data: {'new_password': newPassword},
+    );
+    return _unwrap(response.data);
+  }
+
+  Future<Map<String, dynamic>> getOwnerCollectorAssignments(String collectorId) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '${AppConfig.generatorsBasePath}/owner/collectors/$collectorId/assignments',
+    );
+    return _unwrap(response.data);
+  }
+
+  Future<Map<String, dynamic>> replaceOwnerCollectorAssignments(
+    String collectorId,
+    List<Map<String, dynamic>> assignments,
+  ) async {
+    final response = await _dio.put<Map<String, dynamic>>(
+      '${AppConfig.generatorsBasePath}/owner/collectors/$collectorId/assignments',
+      data: {'assignments': assignments},
+    );
+    return _unwrap(response.data);
+  }
+
+  Future<Map<String, dynamic>> getCollectorAssignments() async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '${AppConfig.generatorsBasePath}/collector/assignments',
     );
     return _unwrap(response.data);
   }

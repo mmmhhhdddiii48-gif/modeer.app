@@ -19,15 +19,9 @@ function ensureGeneratorsSchema(db = getDatabase()) {
 function findAccountByLogin(login) {
   const db = ensureGeneratorsSchema();
   return db.prepare(`
-    SELECT
-      a.*,
-      t.public_id AS tenant_public_id,
-      t.name AS tenant_name,
-      t.phone AS tenant_phone,
-      t.status AS tenant_status,
-      t.subscription_starts_at,
-      t.subscription_expires_at,
-      t.collector_limit
+    SELECT a.*, t.public_id AS tenant_public_id, t.name AS tenant_name,
+      t.phone AS tenant_phone, t.status AS tenant_status,
+      t.subscription_starts_at, t.subscription_expires_at, t.collector_limit
     FROM generator_accounts a
     LEFT JOIN generator_tenants t ON t.id = a.tenant_id
     WHERE a.username = ? COLLATE NOCASE OR a.phone = ?
@@ -38,15 +32,9 @@ function findAccountByLogin(login) {
 function findAccountContext(accountId) {
   const db = ensureGeneratorsSchema();
   return db.prepare(`
-    SELECT
-      a.*,
-      t.public_id AS tenant_public_id,
-      t.name AS tenant_name,
-      t.phone AS tenant_phone,
-      t.status AS tenant_status,
-      t.subscription_starts_at,
-      t.subscription_expires_at,
-      t.collector_limit
+    SELECT a.*, t.public_id AS tenant_public_id, t.name AS tenant_name,
+      t.phone AS tenant_phone, t.status AS tenant_status,
+      t.subscription_starts_at, t.subscription_expires_at, t.collector_limit
     FROM generator_accounts a
     LEFT JOIN generator_tenants t ON t.id = a.tenant_id
     WHERE a.id = ?
@@ -79,22 +67,17 @@ function rotateRefreshToken(oldTokenHash, accountId, newTokenHash, newExpiresAt)
   db.exec('BEGIN IMMEDIATE');
   try {
     const current = db.prepare(`
-      SELECT id, revoked_at, expires_at
-      FROM generator_refresh_tokens
-      WHERE token_hash = ? AND account_id = ?
-      LIMIT 1
+      SELECT id, revoked_at, expires_at FROM generator_refresh_tokens
+      WHERE token_hash = ? AND account_id = ? LIMIT 1
     `).get(oldTokenHash, Number(accountId));
-
     if (!current || current.revoked_at) {
       throw httpError(401, 'INVALID_REFRESH_TOKEN', 'Refresh token is invalid or revoked.');
     }
-
     db.prepare(`
       UPDATE generator_refresh_tokens
       SET revoked_at = datetime('now'), last_used_at = datetime('now')
       WHERE id = ?
     `).run(current.id);
-
     createRefreshTokenRecord(accountId, newTokenHash, newExpiresAt);
     db.exec('COMMIT');
   } catch (error) {
@@ -110,6 +93,15 @@ function revokeRefreshToken(tokenHash) {
     SET revoked_at = COALESCE(revoked_at, datetime('now')), last_used_at = datetime('now')
     WHERE token_hash = ?
   `).run(tokenHash);
+}
+
+function revokeAllRefreshTokensForAccount(accountId) {
+  const db = ensureGeneratorsSchema();
+  db.prepare(`
+    UPDATE generator_refresh_tokens
+    SET revoked_at = COALESCE(revoked_at, datetime('now'))
+    WHERE account_id = ?
+  `).run(Number(accountId));
 }
 
 function writeAuditLog({ tenantId = null, actorAccountId = null, action, entityType, entityUuid = null, before = null, after = null, clientCreatedAt = null }) {
@@ -141,9 +133,7 @@ function provisionTenantOwnerForStage01(input) {
 
   const db = ensureGeneratorsSchema();
   const existing = findAccountByLogin(username);
-  if (existing) {
-    throw httpError(409, 'GENERATOR_ACCOUNT_EXISTS', 'A generator account already uses this username or phone.');
-  }
+  if (existing) throw httpError(409, 'GENERATOR_ACCOUNT_EXISTS', 'A generator account already uses this username or phone.');
 
   const tenantPublicId = crypto.randomUUID();
   const accountPublicId = crypto.randomUUID();
@@ -162,7 +152,6 @@ function provisionTenantOwnerForStage01(input) {
       cleanOptional(input?.subscriptionExpiresAt),
       collectorLimit
     );
-
     const tenantId = Number(tenantResult.lastInsertRowid);
     const accountResult = db.prepare(`
       INSERT INTO generator_accounts (
@@ -178,7 +167,6 @@ function provisionTenantOwnerForStage01(input) {
       hashPassword(password),
       JSON.stringify(['owner.*'])
     );
-
     const accountId = Number(accountResult.lastInsertRowid);
     writeAuditLog({
       tenantId,
@@ -201,7 +189,6 @@ function cleanRequired(value, field) {
   if (!normalized) throw httpError(400, 'VALIDATION_ERROR', `${field} is required.`);
   return normalized;
 }
-
 function cleanOptional(value) {
   if (value == null) return null;
   const normalized = String(value).trim();
@@ -216,6 +203,7 @@ module.exports = {
   findRefreshTokenRecord,
   rotateRefreshToken,
   revokeRefreshToken,
+  revokeAllRefreshTokensForAccount,
   writeAuditLog,
   provisionTenantOwnerForStage01
 };

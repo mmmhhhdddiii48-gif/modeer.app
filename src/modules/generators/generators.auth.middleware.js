@@ -1,7 +1,7 @@
 const { httpError } = require('../../utils/httpError');
 const { readBearerToken, verifyGeneratorAccessToken } = require('./generators.token');
 const { findAccountContext } = require('./generators.db');
-const { assertMobileAccountAllowed, permissionsForRole } = require('./generators.auth.service');
+const { assertMobileAccountAllowed, permissionsForContext } = require('./generators.auth.service');
 
 function requireGeneratorAuth(req, _res, next) {
   try {
@@ -19,7 +19,7 @@ function requireGeneratorAuth(req, _res, next) {
       tenantId: Number(context.tenant_id),
       tenantPublicId: context.tenant_public_id,
       role: context.role,
-      permissions: permissionsForRole(context.role)
+      permissions: permissionsForContext(context)
     };
     next();
   } catch (error) {
@@ -36,4 +36,14 @@ function requireGeneratorRole(...roles) {
   };
 }
 
-module.exports = { requireGeneratorAuth, requireGeneratorRole };
+function requireGeneratorPermission(permission) {
+  return function generatorPermissionGuard(req, _res, next) {
+    const permissions = Array.isArray(req.generatorAuth?.permissions) ? req.generatorAuth.permissions : [];
+    if (!permissions.includes(permission)) {
+      return next(httpError(403, 'GENERATOR_PERMISSION_DENIED', 'You do not have permission for this generator action.'));
+    }
+    return next();
+  };
+}
+
+module.exports = { requireGeneratorAuth, requireGeneratorRole, requireGeneratorPermission };

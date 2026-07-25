@@ -44,5 +44,15 @@ final class AuthRepository {
     }
   }
 
-  Future<void> clearSession() => _tokens.clear();
+  Future<void> clearSession() async {
+    final refresh = await _tokens.readRefreshToken();
+    if (refresh != null && refresh.isNotEmpty) {
+      try {
+        await _api.logout(refresh);
+      } catch (_) {
+        // Local logout must still complete when the device is offline.
+      }
+    }
+    await _tokens.clear();
+  }
 }
