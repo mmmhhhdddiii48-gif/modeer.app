@@ -5,6 +5,8 @@ import '../../../core/theme/app_theme.dart';
 import '../../auth/domain/auth_session.dart';
 import '../../domain/data/domain_repository.dart';
 import '../../domain/presentation/domain_management_page.dart';
+import '../../readings/data/reading_repository.dart';
+import '../../readings/presentation/owner_reading_periods_page.dart';
 import '../data/collector_repository.dart';
 import '../domain/collector_account.dart';
 import 'collector_assignments_page.dart';
@@ -17,6 +19,7 @@ final class OwnerHomePage extends StatefulWidget {
     required this.session,
     required this.repository,
     required this.domainRepository,
+    required this.readingRepository,
     required this.online,
     required this.onLogout,
     required this.onManualSync,
@@ -26,6 +29,7 @@ final class OwnerHomePage extends StatefulWidget {
   final AuthSession session;
   final CollectorRepository repository;
   final DomainRepository domainRepository;
+  final ReadingRepository readingRepository;
   final bool online;
   final Future<void> Function() onLogout;
   final Future<void> Function() onManualSync;
@@ -195,6 +199,18 @@ final class _OwnerHomePageState extends State<OwnerHomePage> {
     await _load();
   }
 
+  Future<void> _openReadingPeriods() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => OwnerReadingPeriodsPage(
+          repository: widget.readingRepository,
+          tenantId: widget.session.tenantId,
+          online: widget.online,
+        ),
+      ),
+    );
+  }
+
   String _apiMessage(DioException error) {
     final data = error.response?.data;
     if (data is Map && data['error'] is Map) {
@@ -252,6 +268,15 @@ final class _OwnerHomePageState extends State<OwnerHomePage> {
                 label: const Text('إدارة المولدات والمسارات والمشتركين'),
               ),
             ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _openReadingPeriods,
+                icon: const Icon(Icons.speed_outlined),
+                label: const Text('دورات وقراءات العدادات'),
+              ),
+            ),
             const SizedBox(height: 14),
             _UsagePanel(usage: _usage),
             const SizedBox(height: 14),
@@ -263,7 +288,7 @@ final class _OwnerHomePageState extends State<OwnerHomePage> {
                 border: Border.all(color: AppTheme.orange.withValues(alpha: 0.42)),
               ),
               child: const Text(
-                'Stage03 يفعّل بيانات المولدات والمسارات والمشتركين والتخصيصات الحقيقية. القراءات والجبايات والفواتير المالية ما زالت مقفلة.',
+                'Stage04 يفعّل قراءة العدادات Offline-First وقفل الدورة فقط. الفواتير والديون والجباية المالية ما زالت مقفلة.',
               ),
             ),
             const SizedBox(height: 18),

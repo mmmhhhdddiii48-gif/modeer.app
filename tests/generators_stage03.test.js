@@ -114,7 +114,7 @@ test('Stage03 creates tenant-isolated generators, routes, and subscribers with r
   assert.equal(tables.length, 3);
 });
 
-test('Stage03 assignment targets are verified by the server and collector visibility follows route/subscriber scope', () => {
+test('Stage03 assignment targets remain server-verified while financial operations stay locked in Stage04', () => {
   const db = getDatabase();
   const owner = db.prepare("SELECT a.*, t.public_id AS tenant_public_id FROM generator_accounts a JOIN generator_tenants t ON t.id = a.tenant_id WHERE a.username = 'stage03-owner-a'").get();
   const auth = ownerAuth(owner);
@@ -181,11 +181,11 @@ test('Stage03 assignment targets are verified by the server and collector visibi
   assert.throws(
     () => recordSyncOperation(auth, {
       operation_uuid: 'fd2fdb66-4742-48b6-b85f-0713a7f04fea',
-      operation_type: 'reading.create',
+      operation_type: 'collection.create',
       client_created_at: new Date().toISOString(),
-      payload: { subscriber_id: subscriber.id, reading: 120 }
+      payload: { subscriber_id: subscriber.id, amount: 50000 }
     }),
-    (error) => error.code === 'STAGE03_OPERATION_NOT_ENABLED'
+    (error) => error.code === 'STAGE04_OPERATION_NOT_ENABLED'
   );
 
   const audit = db.prepare("SELECT COUNT(*) AS count FROM generator_audit_logs WHERE action LIKE 'generator.domain.%'").get();

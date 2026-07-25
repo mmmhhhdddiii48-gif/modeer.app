@@ -5,11 +5,14 @@ import '../../../core/theme/app_theme.dart';
 import '../../auth/domain/auth_session.dart';
 import '../../domain/data/domain_repository.dart';
 import '../../domain/domain/generator_domain.dart';
+import '../../readings/data/reading_repository.dart';
+import '../../readings/presentation/collector_readings_page.dart';
 
 final class CollectorHomePage extends StatefulWidget {
   const CollectorHomePage({
     required this.session,
     required this.domainRepository,
+    required this.readingRepository,
     required this.online,
     required this.onLogout,
     required this.onManualSync,
@@ -18,6 +21,7 @@ final class CollectorHomePage extends StatefulWidget {
 
   final AuthSession session;
   final DomainRepository domainRepository;
+  final ReadingRepository readingRepository;
   final bool online;
   final Future<void> Function() onLogout;
   final Future<void> Function() onManualSync;
@@ -27,11 +31,7 @@ final class CollectorHomePage extends StatefulWidget {
 }
 
 final class _CollectorHomePageState extends State<CollectorHomePage> {
-  AssignedDomain _domain = const AssignedDomain(
-    generators: [],
-    routes: [],
-    subscribers: [],
-  );
+  AssignedDomain _domain = const AssignedDomain(generators: [], routes: [], subscribers: []);
   bool _loading = true;
   bool _syncing = false;
 
@@ -69,6 +69,21 @@ final class _CollectorHomePageState extends State<CollectorHomePage> {
     }
   }
 
+  Future<void> _openReadings() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CollectorReadingsPage(
+          repository: widget.readingRepository,
+          tenantId: widget.session.tenantId,
+          collectorId: widget.session.accountId,
+          online: widget.online,
+          onManualSync: widget.onManualSync,
+        ),
+      ),
+    );
+    await _load();
+  }
+
   String _apiMessage(DioException error) {
     final data = error.response?.data;
     if (data is Map && data['error'] is Map) {
@@ -96,11 +111,7 @@ final class _CollectorHomePageState extends State<CollectorHomePage> {
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.sync),
           ),
-          IconButton(
-            tooltip: 'تسجيل الخروج',
-            onPressed: widget.onLogout,
-            icon: const Icon(Icons.logout),
-          ),
+          IconButton(tooltip: 'تسجيل الخروج', onPressed: widget.onLogout, icon: const Icon(Icons.logout)),
         ],
       ),
       body: RefreshIndicator(
@@ -113,6 +124,15 @@ final class _CollectorHomePageState extends State<CollectorHomePage> {
             const SizedBox(height: 12),
             _ProfileCard(session: widget.session),
             const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _openReadings,
+                icon: const Icon(Icons.speed_outlined),
+                label: const Text('تسجيل قراءات العدادات'),
+              ),
+            ),
+            const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
@@ -121,19 +141,16 @@ final class _CollectorHomePageState extends State<CollectorHomePage> {
                 border: Border.all(color: AppTheme.orange.withValues(alpha: 0.42)),
               ),
               child: const Text(
-                'Stage03 يعرض بيانات التكليف الحقيقية فقط. تسجيل القراءة والجباية المالية غير مفعّل بعد.',
+                'Stage04 يتيح القراءة بدون إنترنت مع UUID ومزامنة آمنة. الجباية والفواتير والديون غير مفعلة.',
               ),
             ),
             const SizedBox(height: 16),
             if (_loading)
-              const Padding(
-                padding: EdgeInsets.all(42),
-                child: Center(child: CircularProgressIndicator()),
-              )
+              const Padding(padding: EdgeInsets.all(42), child: Center(child: CircularProgressIndicator()))
             else ...[
               _CountStrip(domain: _domain),
               const SizedBox(height: 18),
-              _SectionTitle(icon: Icons.people_outline, title: 'المشتركين المكلف بهم'),
+              _SectionTitle(icon: Icons.people_outline, title: 'المشتركون المكلف بهم'),
               const SizedBox(height: 8),
               if (_domain.subscribers.isEmpty)
                 const _EmptyCard(text: 'لا يوجد مشتركون مكلف بهم حاليًا.')
@@ -195,7 +212,6 @@ final class _CollectorHomePageState extends State<CollectorHomePage> {
 final class _ProfileCard extends StatelessWidget {
   const _ProfileCard({required this.session});
   final AuthSession session;
-
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(18),
@@ -204,56 +220,40 @@ final class _ProfileCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(22),
           border: Border.all(color: AppTheme.teal.withValues(alpha: 0.45)),
         ),
-        child: Column(
-          children: [
-            const CircleAvatar(
-              radius: 28,
-              backgroundColor: AppTheme.teal,
-              child: Icon(Icons.badge_outlined, color: Colors.black),
-            ),
-            const SizedBox(height: 10),
-            Text(session.fullName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
-            Text(session.tenantName, style: const TextStyle(color: Colors.white70)),
-          ],
-        ),
+        child: Column(children: [
+          const CircleAvatar(radius: 28, backgroundColor: AppTheme.teal, child: Icon(Icons.badge_outlined, color: Colors.black)),
+          const SizedBox(height: 10),
+          Text(session.fullName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+          Text(session.tenantName, style: const TextStyle(color: Colors.white70)),
+        ]),
       );
 }
 
 final class _CountStrip extends StatelessWidget {
   const _CountStrip({required this.domain});
   final AssignedDomain domain;
-
   @override
-  Widget build(BuildContext context) => Row(
-        children: [
-          Expanded(child: _CountCard(label: 'مشتركون', value: domain.subscribers.length)),
-          const SizedBox(width: 8),
-          Expanded(child: _CountCard(label: 'مسارات', value: domain.routes.length)),
-          const SizedBox(width: 8),
-          Expanded(child: _CountCard(label: 'مولدات', value: domain.generators.length)),
-        ],
-      );
+  Widget build(BuildContext context) => Row(children: [
+        Expanded(child: _CountCard(label: 'مشتركون', value: domain.subscribers.length)),
+        const SizedBox(width: 8),
+        Expanded(child: _CountCard(label: 'مسارات', value: domain.routes.length)),
+        const SizedBox(width: 8),
+        Expanded(child: _CountCard(label: 'مولدات', value: domain.generators.length)),
+      ]);
 }
 
 final class _CountCard extends StatelessWidget {
   const _CountCard({required this.label, required this.value});
   final String label;
   final int value;
-
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(vertical: 14),
-        decoration: BoxDecoration(
-          color: AppTheme.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppTheme.border),
-        ),
-        child: Column(
-          children: [
-            Text('$value', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppTheme.teal)),
-            Text(label, style: const TextStyle(fontSize: 12)),
-          ],
-        ),
+        decoration: BoxDecoration(color: AppTheme.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppTheme.border)),
+        child: Column(children: [
+          Text('$value', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppTheme.teal)),
+          Text(label, style: const TextStyle(fontSize: 12)),
+        ]),
       );
 }
 
@@ -261,29 +261,21 @@ final class _SectionTitle extends StatelessWidget {
   const _SectionTitle({required this.icon, required this.title});
   final IconData icon;
   final String title;
-
   @override
-  Widget build(BuildContext context) => Row(
-        children: [
-          Icon(icon, color: AppTheme.teal),
-          const SizedBox(width: 8),
-          Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
-        ],
-      );
+  Widget build(BuildContext context) => Row(children: [
+        Icon(icon, color: AppTheme.teal),
+        const SizedBox(width: 8),
+        Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+      ]);
 }
 
 final class _EmptyCard extends StatelessWidget {
   const _EmptyCard({required this.text});
   final String text;
-
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(22),
-        decoration: BoxDecoration(
-          color: AppTheme.surface,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppTheme.border),
-        ),
+        decoration: BoxDecoration(color: AppTheme.surface, borderRadius: BorderRadius.circular(18), border: Border.all(color: AppTheme.border)),
         child: Text(text, textAlign: TextAlign.center),
       );
 }
@@ -291,25 +283,17 @@ final class _EmptyCard extends StatelessWidget {
 final class _ConnectionStrip extends StatelessWidget {
   const _ConnectionStrip({required this.online});
   final bool online;
-
   @override
   Widget build(BuildContext context) {
     final color = online ? AppTheme.teal : AppTheme.orange;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: 0.42)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(online ? Icons.cloud_done_outlined : Icons.cloud_off_outlined, size: 18, color: color),
-          const SizedBox(width: 7),
-          Text(online ? 'متصل — المزامنة متاحة' : 'بدون إنترنت — آخر بيانات مؤكدة متاحة'),
-        ],
-      ),
+      decoration: BoxDecoration(color: color.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(14), border: Border.all(color: color.withValues(alpha: 0.42))),
+      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Icon(online ? Icons.cloud_done_outlined : Icons.cloud_off_outlined, size: 18, color: color),
+        const SizedBox(width: 7),
+        Text(online ? 'متصل — المزامنة متاحة' : 'بدون إنترنت — القراءة المحلية متاحة'),
+      ]),
     );
   }
 }

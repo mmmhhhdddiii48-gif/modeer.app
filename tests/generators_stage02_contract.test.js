@@ -8,7 +8,7 @@ function read(relativePath) {
   return fs.readFileSync(path.join(root, relativePath), 'utf8');
 }
 
-test('Stage02 source contract preserves server and mobile boundaries', () => {
+test('Stage02 source contract preserves server and mobile boundaries through Stage04', () => {
   const routes = read('src/modules/generators/generators.routes.js');
   const collectors = fs.readdirSync(path.join(root, 'src/modules/generators'))
     .filter((name) => name.startsWith('generators.collectors.') && name.endsWith('.js'))
@@ -34,7 +34,7 @@ test('Stage02 source contract preserves server and mobile boundaries', () => {
   assert.match(collectors, /revokeAllRefreshTokensForAccount/);
   assert.match(collectors, /generator\.collector\./);
 
-  assert.match(sync, /STAGE03_OPERATION_NOT_ENABLED/);
+  assert.match(sync, /STAGE04_OPERATION_NOT_ENABLED/);
   assert.doesNotMatch(sync, /collection\.create['"]\s*\]/);
 
   assert.match(repository, /LocalDatabase/);
