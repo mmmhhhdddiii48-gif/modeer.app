@@ -7,6 +7,8 @@ import '../../billing/data/billing_repository.dart';
 import '../../billing/presentation/owner_billing_page.dart';
 import '../../domain/data/domain_repository.dart';
 import '../../domain/presentation/domain_management_page.dart';
+import '../../invoices/data/invoice_repository.dart';
+import '../../invoices/presentation/owner_invoices_page.dart';
 import '../../readings/data/reading_repository.dart';
 import '../../readings/presentation/owner_reading_periods_page.dart';
 import '../data/collector_repository.dart';
@@ -23,6 +25,7 @@ final class OwnerHomePage extends StatefulWidget {
     required this.domainRepository,
     required this.readingRepository,
     required this.billingRepository,
+    required this.invoiceRepository,
     required this.online,
     required this.onLogout,
     required this.onManualSync,
@@ -34,6 +37,7 @@ final class OwnerHomePage extends StatefulWidget {
   final DomainRepository domainRepository;
   final ReadingRepository readingRepository;
   final BillingRepository billingRepository;
+  final InvoiceRepository invoiceRepository;
   final bool online;
   final Future<void> Function() onLogout;
   final Future<void> Function() onManualSync;
@@ -227,6 +231,19 @@ final class _OwnerHomePageState extends State<OwnerHomePage> {
     );
   }
 
+  Future<void> _openInvoices() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => OwnerInvoicesPage(
+          billingRepository: widget.billingRepository,
+          invoiceRepository: widget.invoiceRepository,
+          tenantId: widget.session.tenantId,
+          online: widget.online,
+        ),
+      ),
+    );
+  }
+
   String _apiMessage(DioException error) {
     final data = error.response?.data;
     if (data is Map && data['error'] is Map) {
@@ -298,8 +315,17 @@ final class _OwnerHomePageState extends State<OwnerHomePage> {
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: _openBilling,
-                icon: const Icon(Icons.receipt_long_outlined),
+                icon: const Icon(Icons.calculate_outlined),
                 label: const Text('التسعير ومسودات الفواتير'),
+              ),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _openInvoices,
+                icon: const Icon(Icons.receipt_long_outlined),
+                label: const Text('الفواتير المعتمدة والذمم'),
               ),
             ),
             const SizedBox(height: 14),
@@ -313,7 +339,7 @@ final class _OwnerHomePageState extends State<OwnerHomePage> {
                 border: Border.all(color: AppTheme.orange.withValues(alpha: 0.42)),
               ),
               child: const Text(
-                'Stage05 يضيف تسعير الأمبير ومسودات حسابية للمراجعة فقط. الديون والقبض والوصولات ما زالت مقفلة.',
+                'Stage06 يعتمد الفواتير ويفتح سجل الذمم فقط. القبض الكامل أو الجزئي والوصولات والصندوق ما زالت مقفلة.',
               ),
             ),
             const SizedBox(height: 18),

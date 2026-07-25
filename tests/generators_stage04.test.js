@@ -69,7 +69,6 @@ function readingOperation({ periodId, subscriberId, previousValue, currentValue,
 }
 
 let auth;
-let collector;
 let subscriber1;
 let subscriber2;
 
@@ -88,7 +87,7 @@ test('Stage04 creates one open period and applies assigned offline readings idem
     account_number: 'S04-2', full_name: 'مشترك ثان', generator_id: generator.id,
     route_id: route.id, meter_number: 'M04-2'
   });
-  collector = createOwnerCollector(auth, {
+  const collector = createOwnerCollector(auth, {
     full_name: 'جابي Stage04', username: 'stage04-collector', password: 'collector-secret-04'
   }).collector;
   replaceOwnerCollectorAssignments(auth, collector.id, {
@@ -146,7 +145,7 @@ test('Stage04 creates one open period and applies assigned offline readings idem
   assert.equal(rejected.conflict_code, 'METER_READING_PERIOD_NOT_OPEN');
 });
 
-test('Stage04 next period detects stale previous readings and remains financially locked', () => {
+test('Stage04 next period detects stale previous readings and collection remains locked through Stage06', () => {
   const collectorContext = collectorAuth('stage04-collector', 'collector-secret-04');
   const period = createOwnerReadingPeriod(auth, { period_key: '2026-08' });
   const context = getCollectorReadingContext(collectorContext);
@@ -173,13 +172,14 @@ test('Stage04 next period detects stale previous readings and remains financiall
       client_created_at: new Date().toISOString(),
       payload: { amount: 50000 }
     }),
-    (error) => error.code === 'STAGE04_OPERATION_NOT_ENABLED'
+    (error) => error.code === 'STAGE06_OPERATION_NOT_ENABLED'
   );
 
   const status = getGeneratorSyncStatus(collectorContext);
   assert.ok(status.applied_count >= 2);
   assert.ok(status.conflict_count >= 2);
   assert.ok(status.rejected_count >= 1);
+  assert.equal(status.stage, 'Stage06');
   assert.equal(listOwnerReadingPeriods(auth).periods.length, 2);
 
   const db = getDatabase();

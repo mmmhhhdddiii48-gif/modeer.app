@@ -71,7 +71,7 @@ test('Stage01 authentication, tenant isolation, and idempotency foundation remai
       operation_type: 'collection.create',
       payload: { amount: 50000 }
     }),
-    (error) => error.code === 'STAGE04_OPERATION_NOT_ENABLED'
+    (error) => error.code === 'STAGE06_OPERATION_NOT_ENABLED'
   );
 
   const otherTenant = recordSyncOperation(authB, operation);

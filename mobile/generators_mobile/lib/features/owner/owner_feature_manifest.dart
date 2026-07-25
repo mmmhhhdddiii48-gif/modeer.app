@@ -7,6 +7,8 @@ abstract final class OwnerFeatureManifest {
     'collectors',
     'readings',
     'billingDrafts',
+    'approvedInvoices',
+    'debtLedger',
     'collections',
     'expensesAndFuel',
     'maintenance',
@@ -18,10 +20,11 @@ abstract final class OwnerFeatureManifest {
   static const bool realDomainContractsEnabled = true;
   static const bool verifiedAssignmentsEnabled = true;
   static const bool meterReadingOfflineEnabled = true;
-  static const bool readingPeriodLockEnabled = true;
-  static const bool monthlyBillingDraftsEnabledInStage05 = true;
-  static const bool tariffSnapshotsEnabledInStage05 = true;
-  static const bool hardDeleteEnabledInStage05 = false;
-  static const bool collectionEnabledInStage05 = false;
-  static const bool debtEnabledInStage05 = false;
+  static const bool monthlyBillingDraftsEnabled = true;
+  static const bool invoiceApprovalEnabledInStage06 = true;
+  static const bool debtLedgerEnabledInStage06 = true;
+  static const bool collectionEnabledInStage06 = false;
+  static const bool receiptEnabledInStage06 = false;
+  static const bool cashEffectEnabledInStage06 = false;
+  static const bool hardDeleteEnabledInStage06 = false;
 }

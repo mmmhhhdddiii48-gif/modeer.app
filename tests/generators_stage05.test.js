@@ -140,7 +140,7 @@ test('Stage05 calculates immutable review-only billing drafts from locked confir
   assert.equal(workspace.debt_enabled, false);
 });
 
-test('Stage05 keeps tenant isolation and collection operations disabled', () => {
+test('Stage05 keeps tenant isolation while collection stays disabled through Stage06', () => {
   const otherOwner = provisionTenantOwnerForStage01({
     tenantName: 'مؤسسة Stage05 ب', username: 'stage05-owner-b', password: 'owner-secret-05b', collectorLimit: 1
   });
@@ -158,7 +158,7 @@ test('Stage05 keeps tenant isolation and collection operations disabled', () => 
       client_created_at: new Date().toISOString(),
       payload: { amount: 123000 }
     }),
-    (error) => error.code === 'STAGE04_OPERATION_NOT_ENABLED'
+    (error) => error.code === 'STAGE06_OPERATION_NOT_ENABLED'
   );
 
   const db = getDatabase();

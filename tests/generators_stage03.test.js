@@ -114,7 +114,7 @@ test('Stage03 creates tenant-isolated generators, routes, and subscribers with r
   assert.equal(tables.length, 3);
 });
 
-test('Stage03 assignment targets remain server-verified while financial operations stay locked in Stage04', () => {
+test('Stage03 assignment targets remain server-verified while collection stays locked through Stage06', () => {
   const db = getDatabase();
   const owner = db.prepare("SELECT a.*, t.public_id AS tenant_public_id FROM generator_accounts a JOIN generator_tenants t ON t.id = a.tenant_id WHERE a.username = 'stage03-owner-a'").get();
   const auth = ownerAuth(owner);
@@ -148,7 +148,6 @@ test('Stage03 assignment targets remain server-verified while financial operatio
   assert.ok(collectorDomain.generators.some((item) => item.id === generator.id));
   assert.ok(collectorDomain.routes.some((item) => item.id === route.id));
   assert.ok(collectorDomain.subscribers.some((item) => item.id === subscriber.id));
-  assert.equal(collectorDomain.financial_workflows_enabled, false);
 
   replaceOwnerCollectorAssignments(auth, collector.id, {
     assignments: [{ type: 'generator', target_id: generator.id }]
@@ -185,7 +184,7 @@ test('Stage03 assignment targets remain server-verified while financial operatio
       client_created_at: new Date().toISOString(),
       payload: { subscriber_id: subscriber.id, amount: 50000 }
     }),
-    (error) => error.code === 'STAGE04_OPERATION_NOT_ENABLED'
+    (error) => error.code === 'STAGE06_OPERATION_NOT_ENABLED'
   );
 
   const audit = db.prepare("SELECT COUNT(*) AS count FROM generator_audit_logs WHERE action LIKE 'generator.domain.%'").get();

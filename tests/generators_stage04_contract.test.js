@@ -8,7 +8,7 @@ function read(relativePath) {
   return fs.readFileSync(path.join(root, relativePath), 'utf8');
 }
 
-test('Stage04 server contract enables idempotent meter readings and keeps billing locked', () => {
+test('Stage04 server contract enables idempotent meter readings and keeps collection locked through Stage06', () => {
   const db = read('src/modules/generators/generators.db.js');
   const schema = read('src/modules/generators/generators.readings.schema.sql');
   const readings = read('src/modules/generators/generators.readings.service.js');
@@ -28,10 +28,9 @@ test('Stage04 server contract enables idempotent meter readings and keeps billin
   assert.match(routes, /\/collector\/readings\/context/);
   assert.match(routes, /ownerPermission\('readings\.manage'\)/);
   assert.match(routes, /collectorPermissions\([^)]*'readings\.create'/s);
-  assert.match(routes, /financial_workflows_enabled: false/);
 
   assert.match(sync, /reading\.create/);
-  assert.match(sync, /STAGE04_OPERATION_NOT_ENABLED/);
+  assert.match(sync, /STAGE06_OPERATION_NOT_ENABLED/);
   assert.match(sync, /'conflict'/);
   assert.match(sync, /'rejected'/);
   assert.doesNotMatch(sync, /collection\.create['"]\s*\]/);
@@ -78,5 +77,5 @@ test('Stage04 Flutter contract stores readings locally, exposes sync states, and
   const mobile = [localDb, sync, repository, api, collectorPage, ownerPage, app].join('\n');
   assert.doesNotMatch(mobile, /geolocator|latitude|longitude|GPS/i);
   assert.doesNotMatch(mobile, /whatsapp|notification|printer|print\(/i);
-  assert.doesNotMatch(mobile, /price_per_amp|invoice\.create|collection\.create|profit/i);
+  assert.doesNotMatch(mobile, /collection\.create|profit/i);
 });

@@ -8,7 +8,7 @@ function read(relativePath) {
   return fs.readFileSync(path.join(root, relativePath), 'utf8');
 }
 
-test('Stage03 domain contract stays tenant-scoped and additive through Stage04', () => {
+test('Stage03 domain contract stays tenant-scoped and additive through Stage06', () => {
   const schema = read('src/modules/generators/generators.schema.sql');
   const routes = read('src/modules/generators/generators.routes.js');
   const domain = fs.readdirSync(path.join(root, 'src/modules/generators'))
@@ -45,7 +45,7 @@ test('Stage03 domain contract stays tenant-scoped and additive through Stage04',
   assert.match(collectors, /resolveAssignmentTarget/);
   assert.doesNotMatch(collectors, /item\?\.label/);
 
-  assert.match(sync, /STAGE04_OPERATION_NOT_ENABLED/);
+  assert.match(sync, /STAGE06_OPERATION_NOT_ENABLED/);
   assert.match(sync, /reading\.create/);
   assert.doesNotMatch(sync, /collection\.create['"]\s*\]/);
 });

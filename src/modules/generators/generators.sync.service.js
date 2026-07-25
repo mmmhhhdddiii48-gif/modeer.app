@@ -3,7 +3,7 @@ const { httpError } = require('../../utils/httpError');
 const { ensureGeneratorsSchema, writeAuditLog } = require('./generators.db');
 const { applyMeterReadingOperation, isReadingConflictCode } = require('./generators.readings.service');
 
-const ENABLED_OPERATION_TYPES = new Set(['sync.probe', 'auth.session_seen', 'reading.create']);
+const STAGE06_OPERATION_TYPES = new Set(['sync.probe', 'auth.session_seen', 'reading.create']);
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function recordSyncOperation(auth, body) {
@@ -12,8 +12,8 @@ function recordSyncOperation(auth, body) {
   const clientCreatedAt = typeof body?.client_created_at === 'string' ? body.client_created_at.trim() : '';
   const payload = body?.payload == null ? {} : body.payload;
   if (!UUID_PATTERN.test(operationUuid)) throw httpError(400, 'INVALID_OPERATION_UUID', 'operation_uuid must be a valid UUID.');
-  if (!ENABLED_OPERATION_TYPES.has(operationType)) {
-    throw httpError(409, 'STAGE04_OPERATION_NOT_ENABLED', 'This generator operation is not enabled.');
+  if (!STAGE06_OPERATION_TYPES.has(operationType)) {
+    throw httpError(409, 'STAGE06_OPERATION_NOT_ENABLED', 'This generator operation is not enabled in Stage06.');
   }
   if (!clientCreatedAt || !Number.isFinite(Date.parse(clientCreatedAt))) {
     throw httpError(400, 'INVALID_CLIENT_CREATED_AT', 'client_created_at must be a valid ISO date.');
@@ -39,15 +39,8 @@ function recordSyncOperation(auth, body) {
         payload_json, client_created_at, status, conflict_code, response_json
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
-      auth.tenantId,
-      auth.accountId,
-      operationUuid,
-      operationType,
-      payloadHash,
-      payloadJson,
-      clientCreatedAt,
-      outcome.status,
-      outcome.conflictCode,
+      auth.tenantId, auth.accountId, operationUuid, operationType, payloadHash,
+      payloadJson, clientCreatedAt, outcome.status, outcome.conflictCode,
       JSON.stringify(outcome.response)
     );
     const created = db.prepare('SELECT * FROM generator_sync_operations WHERE tenant_id = ? AND operation_uuid = ?')
@@ -71,15 +64,11 @@ function recordSyncOperation(auth, body) {
 
 function executeOperation(auth, operationType, payload, clientCreatedAt, operationUuid) {
   if (operationType !== 'reading.create') {
-    return { status: 'received', conflictCode: null, response: { stage: 'Stage05', accepted: true } };
+    return { status: 'received', conflictCode: null, response: { stage: 'Stage06', accepted: true } };
   }
   try {
     const reading = applyMeterReadingOperation(auth, payload, clientCreatedAt, operationUuid);
-    return {
-      status: 'applied',
-      conflictCode: null,
-      response: { stage: 'Stage05', accepted: true, reading }
-    };
+    return { status: 'applied', conflictCode: null, response: { stage: 'Stage06', accepted: true, reading } };
   } catch (error) {
     if (!error || !Number.isInteger(error.statusCode) || error.statusCode < 400 || error.statusCode >= 500) throw error;
     const status = isReadingConflictCode(error.code) ? 'conflict' : 'rejected';
@@ -87,7 +76,7 @@ function executeOperation(auth, operationType, payload, clientCreatedAt, operati
       status,
       conflictCode: error.code || null,
       response: {
-        stage: 'Stage05',
+        stage: 'Stage06',
         accepted: false,
         error: {
           code: error.code || 'METER_READING_REJECTED',
@@ -117,8 +106,8 @@ function getGeneratorSyncStatus(auth) {
     conflict_count: Number(summary.conflict_count || 0),
     rejected_count: Number(summary.rejected_count || 0),
     last_server_received_at: summary.last_server_received_at || null,
-    stage: 'Stage05',
-    enabled_operation_types: Array.from(ENABLED_OPERATION_TYPES)
+    stage: 'Stage06',
+    enabled_operation_types: Array.from(STAGE06_OPERATION_TYPES)
   };
 }
 

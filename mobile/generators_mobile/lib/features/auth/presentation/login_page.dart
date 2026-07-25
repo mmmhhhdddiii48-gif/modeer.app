@@ -8,6 +8,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../billing/data/billing_repository.dart';
 import '../../collector/presentation/collector_home_page.dart';
 import '../../domain/data/domain_repository.dart';
+import '../../invoices/data/invoice_repository.dart';
 import '../../owner/data/collector_repository.dart';
 import '../../owner/presentation/owner_home_page.dart';
 import '../../readings/data/reading_repository.dart';
@@ -21,6 +22,7 @@ final class LoginPage extends StatefulWidget {
     required this.domainRepository,
     required this.readingRepository,
     required this.billingRepository,
+    required this.invoiceRepository,
     required this.onManualSync,
     this.restoredSession,
     super.key,
@@ -31,6 +33,7 @@ final class LoginPage extends StatefulWidget {
   final DomainRepository domainRepository;
   final ReadingRepository readingRepository;
   final BillingRepository billingRepository;
+  final InvoiceRepository invoiceRepository;
   final Future<void> Function() onManualSync;
   final AuthSession? restoredSession;
 
@@ -118,6 +121,7 @@ final class _LoginPageState extends State<LoginPage> {
           domainRepository: widget.domainRepository,
           readingRepository: widget.readingRepository,
           billingRepository: widget.billingRepository,
+          invoiceRepository: widget.invoiceRepository,
           online: _online,
           onLogout: _logout,
           onManualSync: widget.onManualSync,
