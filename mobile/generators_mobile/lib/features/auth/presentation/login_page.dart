@@ -10,6 +10,7 @@ import '../../domain/data/domain_repository.dart';
 import '../../owner/data/collector_repository.dart';
 import '../../owner/presentation/owner_home_page.dart';
 import '../../readings/data/reading_repository.dart';
+import '../../simple_billing/data/simple_billing_repository.dart';
 import '../data/auth_repository.dart';
 import '../domain/auth_session.dart';
 
@@ -19,6 +20,7 @@ final class LoginPage extends StatefulWidget {
     required this.collectorRepository,
     required this.domainRepository,
     required this.readingRepository,
+    required this.simpleBillingRepository,
     required this.onManualSync,
     this.restoredSession,
     super.key,
@@ -28,6 +30,7 @@ final class LoginPage extends StatefulWidget {
   final CollectorRepository collectorRepository;
   final DomainRepository domainRepository;
   final ReadingRepository readingRepository;
+  final SimpleBillingRepository simpleBillingRepository;
   final Future<void> Function() onManualSync;
   final AuthSession? restoredSession;
 
@@ -114,6 +117,7 @@ final class _LoginPageState extends State<LoginPage> {
           repository: widget.collectorRepository,
           domainRepository: widget.domainRepository,
           readingRepository: widget.readingRepository,
+          simpleBillingRepository: widget.simpleBillingRepository,
           online: _online,
           onLogout: _logout,
           onManualSync: widget.onManualSync,
@@ -260,7 +264,7 @@ final class _ConnectionBanner extends StatelessWidget {
           Icon(online ? Icons.cloud_done_outlined : Icons.cloud_off_outlined, size: 19, color: color),
           const SizedBox(width: 8),
           Text(
-            online ? 'متصل — المزامنة متاحة' : 'بدون إنترنت — الحركات ستبقى محليًا',
+            online ? 'متصل — المزامنة متاحة' : 'بدون إنترنت — القراءات تبقى محفوظة محليًا',
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),
         ],

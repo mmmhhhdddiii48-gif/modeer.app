@@ -7,6 +7,8 @@ import '../../domain/data/domain_repository.dart';
 import '../../domain/presentation/domain_management_page.dart';
 import '../../readings/data/reading_repository.dart';
 import '../../readings/presentation/owner_reading_periods_page.dart';
+import '../../simple_billing/data/simple_billing_repository.dart';
+import '../../simple_billing/presentation/owner_simple_billing_page.dart';
 import '../data/collector_repository.dart';
 import '../domain/collector_account.dart';
 import 'collector_assignments_page.dart';
@@ -20,6 +22,7 @@ final class OwnerHomePage extends StatefulWidget {
     required this.repository,
     required this.domainRepository,
     required this.readingRepository,
+    required this.simpleBillingRepository,
     required this.online,
     required this.onLogout,
     required this.onManualSync,
@@ -30,6 +33,7 @@ final class OwnerHomePage extends StatefulWidget {
   final CollectorRepository repository;
   final DomainRepository domainRepository;
   final ReadingRepository readingRepository;
+  final SimpleBillingRepository simpleBillingRepository;
   final bool online;
   final Future<void> Function() onLogout;
   final Future<void> Function() onManualSync;
@@ -80,7 +84,7 @@ final class _OwnerHomePageState extends State<OwnerHomePage> {
       if (!mounted) return;
       _showMessage('اكتملت محاولة المزامنة الآمنة.');
     } catch (_) {
-      _showMessage('تعذرت المزامنة الآن، وستبقى الحركات المحلية محفوظة.');
+      _showMessage('تعذرت المزامنة الآن، وستبقى القراءات المحلية محفوظة.');
     } finally {
       if (mounted) setState(() => _syncing = false);
     }
@@ -211,6 +215,17 @@ final class _OwnerHomePageState extends State<OwnerHomePage> {
     );
   }
 
+  Future<void> _openMonthlyBilling() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => OwnerSimpleBillingPage(
+          repository: widget.simpleBillingRepository,
+          online: widget.online,
+        ),
+      ),
+    );
+  }
+
   String _apiMessage(DioException error) {
     final data = error.response?.data;
     if (data is Map && data['error'] is Map) {
@@ -229,7 +244,7 @@ final class _OwnerHomePageState extends State<OwnerHomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('إدارة الجباة'),
+        title: const Text('إدارة المولدة'),
         actions: [
           IconButton(
             tooltip: 'مزامنة الآن',
@@ -265,7 +280,7 @@ final class _OwnerHomePageState extends State<OwnerHomePage> {
               child: ElevatedButton.icon(
                 onPressed: _openDomainManagement,
                 icon: const Icon(Icons.account_tree_outlined),
-                label: const Text('إدارة المولدات والمسارات والمشتركين'),
+                label: const Text('المولدات والمسارات والمشتركون'),
               ),
             ),
             const SizedBox(height: 10),
@@ -274,23 +289,33 @@ final class _OwnerHomePageState extends State<OwnerHomePage> {
               child: OutlinedButton.icon(
                 onPressed: _openReadingPeriods,
                 icon: const Icon(Icons.speed_outlined),
-                label: const Text('دورات وقراءات العدادات'),
+                label: const Text('قراءات العدادات'),
               ),
             ),
-            const SizedBox(height: 14),
-            _UsagePanel(usage: _usage),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _openMonthlyBilling,
+                icon: const Icon(Icons.receipt_long_outlined),
+                label: const Text('فواتير الشهر'),
+              ),
+            ),
             const SizedBox(height: 14),
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: AppTheme.orange.withValues(alpha: 0.10),
+                color: AppTheme.teal.withValues(alpha: 0.10),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppTheme.orange.withValues(alpha: 0.42)),
+                border: Border.all(color: AppTheme.teal.withValues(alpha: 0.42)),
               ),
               child: const Text(
-                'Stage04 يفعّل قراءة العدادات Offline-First وقفل الدورة فقط. الفواتير والديون والجباية المالية ما زالت مقفلة.',
+                'الطريقة: سجل القراءات، اقفل الشهر، حدد سعر الأمبير، ثم أنشئ الفواتير. '
+                'الفاتورة غير المسددة هي الدين نفسه؛ لا توجد مسودات أو مراجعة أو اعتماد منفصل.',
               ),
             ),
+            const SizedBox(height: 14),
+            _UsagePanel(usage: _usage),
             const SizedBox(height: 18),
             Text('الجباة', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
             const SizedBox(height: 10),

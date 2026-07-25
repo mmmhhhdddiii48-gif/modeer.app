@@ -1,7 +1,7 @@
 name: nukhba_generators_mobile
-description: النخبة لإدارة المولدات والجباية Mobile - Stage04 meter reading offline.
+description: النخبة لإدارة المولدات والجباية Mobile - Simple clear monthly invoices.
 publish_to: none
-version: 0.4.0+4
+version: 0.5.0+5
 
 environment:
   sdk: '>=3.3.0 <4.0.0'

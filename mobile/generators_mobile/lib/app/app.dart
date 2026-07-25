@@ -15,6 +15,8 @@ import '../features/domain/data/domain_repository.dart';
 import '../features/owner/data/collector_repository.dart';
 import '../features/readings/data/reading_repository.dart';
 import '../features/readings/data/readings_api_client.dart';
+import '../features/simple_billing/data/simple_billing_api_client.dart';
+import '../features/simple_billing/data/simple_billing_repository.dart';
 
 final class NukhbaGeneratorsApp extends StatefulWidget {
   const NukhbaGeneratorsApp({super.key});
@@ -28,6 +30,7 @@ final class _NukhbaGeneratorsAppState extends State<NukhbaGeneratorsApp> {
   late final CollectorRepository _collectorRepository;
   late final DomainRepository _domainRepository;
   late final ReadingRepository _readingRepository;
+  late final SimpleBillingRepository _simpleBillingRepository;
   late final SyncEngine _syncEngine;
   AuthSession? _restoredSession;
   bool _restoring = true;
@@ -43,6 +46,9 @@ final class _NukhbaGeneratorsAppState extends State<NukhbaGeneratorsApp> {
     _readingRepository = ReadingRepository(
       api: ReadingsApiClient(tokenStorage: tokens),
       database: LocalDatabase.instance,
+    );
+    _simpleBillingRepository = SimpleBillingRepository(
+      api: SimpleBillingApiClient(tokenStorage: tokens),
     );
     _syncEngine = SyncEngine(database: LocalDatabase.instance, api: api);
     _syncEngine.start();
@@ -88,6 +94,7 @@ final class _NukhbaGeneratorsAppState extends State<NukhbaGeneratorsApp> {
               collectorRepository: _collectorRepository,
               domainRepository: _domainRepository,
               readingRepository: _readingRepository,
+              simpleBillingRepository: _simpleBillingRepository,
               restoredSession: _restoredSession,
               onManualSync: _syncEngine.flush,
             ),

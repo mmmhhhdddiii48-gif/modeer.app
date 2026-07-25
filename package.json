@@ -19,7 +19,9 @@
     "test:generators:stage03:contract": "node --test tests/generators_stage03_contract.test.js",
     "test:generators:stage04": "node --test tests/generators_stage04.test.js",
     "test:generators:stage04:contract": "node --test tests/generators_stage04_contract.test.js",
-    "test:generators": "node --test tests/generators_stage01.test.js tests/generators_stage02.test.js tests/generators_stage02_contract.test.js tests/generators_stage03.test.js tests/generators_stage03_contract.test.js tests/generators_stage04.test.js tests/generators_stage04_contract.test.js",
+    "test:generators:stage05:simple": "node --test tests/generators_stage05_simple.test.js",
+    "test:generators:stage05:simple:contract": "node --test tests/generators_stage05_simple_contract.test.js",
+    "test:generators": "node --test tests/generators_stage01.test.js tests/generators_stage02.test.js tests/generators_stage02_contract.test.js tests/generators_stage03.test.js tests/generators_stage03_contract.test.js tests/generators_stage04.test.js tests/generators_stage04_contract.test.js tests/generators_stage05_simple.test.js tests/generators_stage05_simple_contract.test.js",
     "render:check": "node scripts/check-db.js"
   },
   "engines": {
