@@ -6,7 +6,7 @@ abstract final class OwnerFeatureManifest {
     'subscribers',
     'collectors',
     'readings',
-    'invoices',
+    'billingDrafts',
     'collections',
     'expensesAndFuel',
     'maintenance',
@@ -17,9 +17,11 @@ abstract final class OwnerFeatureManifest {
   static const bool collectorProvisioningEnabled = true;
   static const bool realDomainContractsEnabled = true;
   static const bool verifiedAssignmentsEnabled = true;
-  static const bool meterReadingOfflineEnabledInStage04 = true;
-  static const bool readingPeriodLockEnabledInStage04 = true;
-  static const bool hardDeleteEnabledInStage04 = false;
-  static const bool billingEnabledInStage04 = false;
-  static const bool collectionEnabledInStage04 = false;
+  static const bool meterReadingOfflineEnabled = true;
+  static const bool readingPeriodLockEnabled = true;
+  static const bool monthlyBillingDraftsEnabledInStage05 = true;
+  static const bool tariffSnapshotsEnabledInStage05 = true;
+  static const bool hardDeleteEnabledInStage05 = false;
+  static const bool collectionEnabledInStage05 = false;
+  static const bool debtEnabledInStage05 = false;
 }

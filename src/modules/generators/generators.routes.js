@@ -52,6 +52,13 @@ const {
   listOwnerMeterReadings,
   getCollectorReadingContext
 } = require('./generators.readings.service');
+const {
+  listOwnerBillingPeriods,
+  getOwnerBillingWorkspace,
+  upsertOwnerBillingTariff,
+  generateOwnerBillingDrafts,
+  updateOwnerBillingDraftStatus
+} = require('./generators.billing.service');
 
 const generatorsRouter = express.Router();
 const ownerOnly = [requireGeneratorRole('owner')];
@@ -63,7 +70,7 @@ function collectorPermissions(...permissions) {
 
 generatorsRouter.get('/health', (_req, res) => {
   ensureGeneratorsSchema();
-  res.json({ ok: true, data: { module: 'generators', stage: 'Stage04', status: 'ready' } });
+  res.json({ ok: true, data: { module: 'generators', stage: 'Stage05', status: 'ready' } });
 });
 generatorsRouter.post('/auth/login', asyncHandler((req, res) => {
   res.status(200).json({ ok: true, data: loginGeneratorAccount(req.body || {}) });
@@ -86,15 +93,17 @@ generatorsRouter.get('/owner/foundation', ...ownerOnly, (req, res) => {
     data: {
       role: 'owner',
       tenant_id: req.generatorAuth.tenantPublicId,
-      stage: 'Stage04',
-      modules: ['dashboard', 'generators', 'routes', 'subscribers', 'collectors', 'readings', 'invoices', 'collections', 'expenses', 'maintenance', 'reports', 'sync-audit'],
+      stage: 'Stage05',
+      modules: ['dashboard', 'generators', 'routes', 'subscribers', 'collectors', 'readings', 'billing-drafts', 'collections', 'expenses', 'maintenance', 'reports', 'sync-audit'],
       collector_provisioning_enabled: true,
       verified_assignment_targets_enabled: true,
       domain_contracts_enabled: true,
       meter_reading_offline_enabled: true,
+      monthly_billing_drafts_enabled: true,
+      billing_calculation_method: 'contracted_amperes',
       hard_delete_enabled: false,
-      billing_enabled: false,
       collection_enabled: false,
+      debt_enabled: false,
       collector_permission_allowlist: COLLECTOR_PERMISSION_ALLOWLIST,
       financial_workflows_enabled: false
     }
@@ -182,7 +191,7 @@ generatorsRouter.get('/owner/assignment-catalog', ...ownerPermission('collectors
   res.json({ ok: true, data: listOwnerAssignmentCatalog(req.generatorAuth, req.query || {}) });
 }));
 
-// Stage04 owner period/read-only reading management. No billing side effects.
+// Meter-reading period management.
 generatorsRouter.get('/owner/reading-periods', ...ownerPermission('readings.manage'), asyncHandler((req, res) => {
   res.json({ ok: true, data: listOwnerReadingPeriods(req.generatorAuth) });
 }));
@@ -196,17 +205,35 @@ generatorsRouter.get('/owner/meter-readings', ...ownerPermission('readings.manag
   res.json({ ok: true, data: listOwnerMeterReadings(req.generatorAuth, req.query || {}) });
 }));
 
+// Stage05 monthly tariff and review-only billing drafts. No collection/debt side effects.
+generatorsRouter.get('/owner/billing/periods', ...ownerPermission('invoices.manage'), asyncHandler((req, res) => {
+  res.json({ ok: true, data: listOwnerBillingPeriods(req.generatorAuth) });
+}));
+generatorsRouter.get('/owner/billing/periods/:periodId', ...ownerPermission('invoices.manage'), asyncHandler((req, res) => {
+  res.json({ ok: true, data: getOwnerBillingWorkspace(req.generatorAuth, req.params.periodId, req.query || {}) });
+}));
+generatorsRouter.put('/owner/billing/periods/:periodId/tariffs/:generatorId', ...ownerPermission('invoices.manage'), asyncHandler((req, res) => {
+  res.json({ ok: true, data: upsertOwnerBillingTariff(req.generatorAuth, req.params.periodId, req.params.generatorId, req.body || {}) });
+}));
+generatorsRouter.post('/owner/billing/periods/:periodId/generate', ...ownerPermission('invoices.manage'), asyncHandler((req, res) => {
+  res.status(201).json({ ok: true, data: generateOwnerBillingDrafts(req.generatorAuth, req.params.periodId) });
+}));
+generatorsRouter.patch('/owner/billing/drafts/:draftId/status', ...ownerPermission('invoices.manage'), asyncHandler((req, res) => {
+  res.json({ ok: true, data: updateOwnerBillingDraftStatus(req.generatorAuth, req.params.draftId, req.body || {}) });
+}));
+
 generatorsRouter.get('/collector/foundation', ...collectorOnly, (req, res) => {
   res.json({
     ok: true,
     data: {
       role: 'collector',
       tenant_id: req.generatorAuth.tenantPublicId,
-      stage: 'Stage04',
+      stage: 'Stage05',
       modules: ['assigned-generators', 'assigned-routes', 'assigned-subscribers', 'meter-readings', 'collections', 'own-history', 'sync-status'],
       permissions: req.generatorAuth.permissions,
       assigned_domain_enabled: true,
       meter_reading_offline_enabled: req.generatorAuth.permissions.includes('readings.create'),
+      billing_drafts_visible: false,
       collection_enabled: false,
       financial_workflows_enabled: false
     }

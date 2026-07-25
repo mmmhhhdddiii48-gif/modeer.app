@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../auth/domain/auth_session.dart';
+import '../../billing/data/billing_repository.dart';
+import '../../billing/presentation/owner_billing_page.dart';
 import '../../domain/data/domain_repository.dart';
 import '../../domain/presentation/domain_management_page.dart';
 import '../../readings/data/reading_repository.dart';
@@ -20,6 +22,7 @@ final class OwnerHomePage extends StatefulWidget {
     required this.repository,
     required this.domainRepository,
     required this.readingRepository,
+    required this.billingRepository,
     required this.online,
     required this.onLogout,
     required this.onManualSync,
@@ -30,6 +33,7 @@ final class OwnerHomePage extends StatefulWidget {
   final CollectorRepository repository;
   final DomainRepository domainRepository;
   final ReadingRepository readingRepository;
+  final BillingRepository billingRepository;
   final bool online;
   final Future<void> Function() onLogout;
   final Future<void> Function() onManualSync;
@@ -211,6 +215,18 @@ final class _OwnerHomePageState extends State<OwnerHomePage> {
     );
   }
 
+  Future<void> _openBilling() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => OwnerBillingPage(
+          repository: widget.billingRepository,
+          tenantId: widget.session.tenantId,
+          online: widget.online,
+        ),
+      ),
+    );
+  }
+
   String _apiMessage(DioException error) {
     final data = error.response?.data;
     if (data is Map && data['error'] is Map) {
@@ -277,6 +293,15 @@ final class _OwnerHomePageState extends State<OwnerHomePage> {
                 label: const Text('دورات وقراءات العدادات'),
               ),
             ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _openBilling,
+                icon: const Icon(Icons.receipt_long_outlined),
+                label: const Text('التسعير ومسودات الفواتير'),
+              ),
+            ),
             const SizedBox(height: 14),
             _UsagePanel(usage: _usage),
             const SizedBox(height: 14),
@@ -288,7 +313,7 @@ final class _OwnerHomePageState extends State<OwnerHomePage> {
                 border: Border.all(color: AppTheme.orange.withValues(alpha: 0.42)),
               ),
               child: const Text(
-                'Stage04 يفعّل قراءة العدادات Offline-First وقفل الدورة فقط. الفواتير والديون والجباية المالية ما زالت مقفلة.',
+                'Stage05 يضيف تسعير الأمبير ومسودات حسابية للمراجعة فقط. الديون والقبض والوصولات ما زالت مقفلة.',
               ),
             ),
             const SizedBox(height: 18),

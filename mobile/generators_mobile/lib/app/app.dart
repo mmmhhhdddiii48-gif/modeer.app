@@ -11,6 +11,8 @@ import '../features/auth/data/auth_repository.dart';
 import '../features/auth/domain/auth_session.dart';
 import '../features/auth/presentation/login_page.dart';
 import '../features/auth/presentation/splash_page.dart';
+import '../features/billing/data/billing_api_client.dart';
+import '../features/billing/data/billing_repository.dart';
 import '../features/domain/data/domain_repository.dart';
 import '../features/owner/data/collector_repository.dart';
 import '../features/readings/data/reading_repository.dart';
@@ -28,6 +30,7 @@ final class _NukhbaGeneratorsAppState extends State<NukhbaGeneratorsApp> {
   late final CollectorRepository _collectorRepository;
   late final DomainRepository _domainRepository;
   late final ReadingRepository _readingRepository;
+  late final BillingRepository _billingRepository;
   late final SyncEngine _syncEngine;
   AuthSession? _restoredSession;
   bool _restoring = true;
@@ -42,6 +45,10 @@ final class _NukhbaGeneratorsAppState extends State<NukhbaGeneratorsApp> {
     _domainRepository = DomainRepository(api: api, database: LocalDatabase.instance);
     _readingRepository = ReadingRepository(
       api: ReadingsApiClient(tokenStorage: tokens),
+      database: LocalDatabase.instance,
+    );
+    _billingRepository = BillingRepository(
+      api: BillingApiClient(tokenStorage: tokens),
       database: LocalDatabase.instance,
     );
     _syncEngine = SyncEngine(database: LocalDatabase.instance, api: api);
@@ -88,6 +95,7 @@ final class _NukhbaGeneratorsAppState extends State<NukhbaGeneratorsApp> {
               collectorRepository: _collectorRepository,
               domainRepository: _domainRepository,
               readingRepository: _readingRepository,
+              billingRepository: _billingRepository,
               restoredSession: _restoredSession,
               onManualSync: _syncEngine.flush,
             ),
