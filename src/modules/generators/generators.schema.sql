@@ -1,4 +1,4 @@
--- Nukhba Generators Mobile - Stage02 additive schema.
+-- Nukhba Generators Mobile - Stage03 additive schema.
 -- Isolated from existing manager/employee tables and safe to run repeatedly.
 PRAGMA foreign_keys = ON;
 
@@ -100,8 +100,86 @@ CREATE TABLE IF NOT EXISTS generator_audit_logs (
 CREATE INDEX IF NOT EXISTS idx_generator_audit_tenant_time ON generator_audit_logs(tenant_id, server_created_at);
 CREATE INDEX IF NOT EXISTS idx_generator_audit_actor ON generator_audit_logs(actor_account_id);
 
--- Stage02: owner-managed collector assignment foundation.
--- Targets are public references only in this stage; subscriber/generator financial records are not created yet.
+-- Stage03: real generators, routes, and subscribers. No billing or collection fields.
+CREATE TABLE IF NOT EXISTS generator_units (
+  id INTEGER PRIMARY KEY,
+  public_id TEXT NOT NULL UNIQUE,
+  tenant_id INTEGER NOT NULL,
+  code TEXT NOT NULL COLLATE NOCASE,
+  name TEXT NOT NULL,
+  area TEXT,
+  address TEXT,
+  capacity_kva REAL CHECK (capacity_kva IS NULL OR capacity_kva >= 0),
+  phase_type TEXT NOT NULL DEFAULT 'unknown' CHECK (phase_type IN ('single', 'three', 'unknown')),
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'maintenance')),
+  notes TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  CONSTRAINT uq_generator_units_tenant_code UNIQUE (tenant_id, code),
+  CONSTRAINT fk_generator_units_tenant FOREIGN KEY (tenant_id)
+    REFERENCES generator_tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_generator_units_tenant_status ON generator_units(tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_generator_units_tenant_name ON generator_units(tenant_id, name);
+
+CREATE TABLE IF NOT EXISTS generator_routes (
+  id INTEGER PRIMARY KEY,
+  public_id TEXT NOT NULL UNIQUE,
+  tenant_id INTEGER NOT NULL,
+  generator_unit_id INTEGER,
+  code TEXT NOT NULL COLLATE NOCASE,
+  name TEXT NOT NULL,
+  area TEXT,
+  notes TEXT,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  CONSTRAINT uq_generator_routes_tenant_code UNIQUE (tenant_id, code),
+  CONSTRAINT fk_generator_routes_tenant FOREIGN KEY (tenant_id)
+    REFERENCES generator_tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  CONSTRAINT fk_generator_routes_unit FOREIGN KEY (generator_unit_id)
+    REFERENCES generator_units(id) ON UPDATE CASCADE ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_generator_routes_tenant_status ON generator_routes(tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_generator_routes_unit ON generator_routes(tenant_id, generator_unit_id);
+
+CREATE TABLE IF NOT EXISTS generator_subscribers (
+  id INTEGER PRIMARY KEY,
+  public_id TEXT NOT NULL UNIQUE,
+  tenant_id INTEGER NOT NULL,
+  generator_unit_id INTEGER NOT NULL,
+  route_id INTEGER,
+  account_number TEXT NOT NULL COLLATE NOCASE,
+  full_name TEXT NOT NULL,
+  phone TEXT,
+  area TEXT,
+  address TEXT,
+  meter_number TEXT,
+  contracted_amperes INTEGER NOT NULL DEFAULT 0 CHECK (contracted_amperes >= 0),
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'disconnected')),
+  notes TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  CONSTRAINT uq_generator_subscribers_tenant_account UNIQUE (tenant_id, account_number),
+  CONSTRAINT fk_generator_subscribers_tenant FOREIGN KEY (tenant_id)
+    REFERENCES generator_tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  CONSTRAINT fk_generator_subscribers_unit FOREIGN KEY (generator_unit_id)
+    REFERENCES generator_units(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  CONSTRAINT fk_generator_subscribers_route FOREIGN KEY (route_id)
+    REFERENCES generator_routes(id) ON UPDATE CASCADE ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_generator_subscribers_tenant_status ON generator_subscribers(tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_generator_subscribers_unit ON generator_subscribers(tenant_id, generator_unit_id);
+CREATE INDEX IF NOT EXISTS idx_generator_subscribers_route ON generator_subscribers(tenant_id, route_id);
+CREATE INDEX IF NOT EXISTS idx_generator_subscribers_name ON generator_subscribers(tenant_id, full_name);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_generator_subscribers_meter
+  ON generator_subscribers(tenant_id, meter_number)
+  WHERE meter_number IS NOT NULL AND trim(meter_number) <> '';
+
+-- Owner-managed collector assignments now reference verified Stage03 domain public IDs.
 CREATE TABLE IF NOT EXISTS generator_collector_assignments (
   id INTEGER PRIMARY KEY,
   public_id TEXT NOT NULL UNIQUE,
@@ -143,6 +221,27 @@ AFTER UPDATE ON generator_accounts
 FOR EACH ROW WHEN NEW.updated_at = OLD.updated_at
 BEGIN
   UPDATE generator_accounts SET updated_at = datetime('now') WHERE id = OLD.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_generator_units_updated_at
+AFTER UPDATE ON generator_units
+FOR EACH ROW WHEN NEW.updated_at = OLD.updated_at
+BEGIN
+  UPDATE generator_units SET updated_at = datetime('now') WHERE id = OLD.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_generator_routes_updated_at
+AFTER UPDATE ON generator_routes
+FOR EACH ROW WHEN NEW.updated_at = OLD.updated_at
+BEGIN
+  UPDATE generator_routes SET updated_at = datetime('now') WHERE id = OLD.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_generator_subscribers_updated_at
+AFTER UPDATE ON generator_subscribers
+FOR EACH ROW WHEN NEW.updated_at = OLD.updated_at
+BEGIN
+  UPDATE generator_subscribers SET updated_at = datetime('now') WHERE id = OLD.id;
 END;
 
 CREATE TRIGGER IF NOT EXISTS trg_generator_assignments_updated_at

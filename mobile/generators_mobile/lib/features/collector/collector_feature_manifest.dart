@@ -1,5 +1,7 @@
 abstract final class CollectorFeatureManifest {
   static const List<String> plannedModules = [
+    'assignedGenerators',
+    'assignedRoutes',
     'assignedSubscribers',
     'meterReadings',
     'fullOrPartialCollections',
@@ -15,6 +17,6 @@ abstract final class CollectorFeatureManifest {
     'otherCollectorsData',
   ];
 
-  static const bool assignmentsVisibleInStage02 = true;
-  static const bool financialWorkflowsEnabledInStage02 = false;
+  static const bool assignedDomainVisibleInStage03 = true;
+  static const bool financialWorkflowsEnabledInStage03 = false;
 }

@@ -10,7 +10,10 @@ function read(relativePath) {
 
 test('Stage02 source contract preserves server and mobile boundaries', () => {
   const routes = read('src/modules/generators/generators.routes.js');
-  const collectors = read('src/modules/generators/generators.collectors.service.js');
+  const collectors = fs.readdirSync(path.join(root, 'src/modules/generators'))
+    .filter((name) => name.startsWith('generators.collectors.') && name.endsWith('.js'))
+    .map((name) => read(`src/modules/generators/${name}`))
+    .join('\n');
   const sync = read('src/modules/generators/generators.sync.service.js');
   const appConfig = read('mobile/generators_mobile/lib/core/config/app_config.dart');
   const repository = read('mobile/generators_mobile/lib/features/owner/data/collector_repository.dart');
@@ -23,7 +26,7 @@ test('Stage02 source contract preserves server and mobile boundaries', () => {
   assert.match(routes, /\/owner\/collectors/);
   assert.match(routes, /\/collector\/assignments/);
   assert.match(routes, /requireGeneratorAuth/);
-  assert.match(routes, /requireGeneratorPermission\('collectors\.manage'\)/);
+  assert.match(routes, /ownerPermission\('collectors\.manage'\)/);
 
   assert.doesNotMatch(collectors, /body\??\.(tenant_id|tenantId)/);
   assert.match(collectors, /auth\.tenantId/);
@@ -31,7 +34,7 @@ test('Stage02 source contract preserves server and mobile boundaries', () => {
   assert.match(collectors, /revokeAllRefreshTokensForAccount/);
   assert.match(collectors, /generator\.collector\./);
 
-  assert.match(sync, /STAGE02_OPERATION_NOT_ENABLED/);
+  assert.match(sync, /STAGE03_OPERATION_NOT_ENABLED/);
   assert.doesNotMatch(sync, /collection\.create['"]\s*\]/);
 
   assert.match(repository, /LocalDatabase/);

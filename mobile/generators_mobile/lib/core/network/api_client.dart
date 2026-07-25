@@ -147,12 +147,137 @@ final class ApiClient {
     return _unwrap(response.data);
   }
 
+  Future<Map<String, dynamic>> getOwnerGenerators({String? query}) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '${AppConfig.generatorsBasePath}/owner/generators',
+      queryParameters: _compact({'q': query}),
+    );
+    return _unwrap(response.data);
+  }
+
+  Future<Map<String, dynamic>> createOwnerGenerator(Map<String, dynamic> input) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '${AppConfig.generatorsBasePath}/owner/generators',
+      data: input,
+    );
+    return _unwrap(response.data);
+  }
+
+  Future<Map<String, dynamic>> updateOwnerGenerator(String id, Map<String, dynamic> input) async {
+    final response = await _dio.patch<Map<String, dynamic>>(
+      '${AppConfig.generatorsBasePath}/owner/generators/$id',
+      data: input,
+    );
+    return _unwrap(response.data);
+  }
+
+  Future<Map<String, dynamic>> updateOwnerGeneratorStatus(String id, String status) async {
+    final response = await _dio.patch<Map<String, dynamic>>(
+      '${AppConfig.generatorsBasePath}/owner/generators/$id/status',
+      data: {'status': status},
+    );
+    return _unwrap(response.data);
+  }
+
+  Future<Map<String, dynamic>> getOwnerRoutes({String? query, String? generatorId}) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '${AppConfig.generatorsBasePath}/owner/routes',
+      queryParameters: _compact({'q': query, 'generator_id': generatorId}),
+    );
+    return _unwrap(response.data);
+  }
+
+  Future<Map<String, dynamic>> createOwnerRoute(Map<String, dynamic> input) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '${AppConfig.generatorsBasePath}/owner/routes',
+      data: input,
+    );
+    return _unwrap(response.data);
+  }
+
+  Future<Map<String, dynamic>> updateOwnerRoute(String id, Map<String, dynamic> input) async {
+    final response = await _dio.patch<Map<String, dynamic>>(
+      '${AppConfig.generatorsBasePath}/owner/routes/$id',
+      data: input,
+    );
+    return _unwrap(response.data);
+  }
+
+  Future<Map<String, dynamic>> updateOwnerRouteStatus(String id, String status) async {
+    final response = await _dio.patch<Map<String, dynamic>>(
+      '${AppConfig.generatorsBasePath}/owner/routes/$id/status',
+      data: {'status': status},
+    );
+    return _unwrap(response.data);
+  }
+
+  Future<Map<String, dynamic>> getOwnerSubscribers({
+    String? query,
+    String? generatorId,
+    String? routeId,
+  }) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '${AppConfig.generatorsBasePath}/owner/subscribers',
+      queryParameters: _compact({
+        'q': query,
+        'generator_id': generatorId,
+        'route_id': routeId,
+      }),
+    );
+    return _unwrap(response.data);
+  }
+
+  Future<Map<String, dynamic>> createOwnerSubscriber(Map<String, dynamic> input) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '${AppConfig.generatorsBasePath}/owner/subscribers',
+      data: input,
+    );
+    return _unwrap(response.data);
+  }
+
+  Future<Map<String, dynamic>> updateOwnerSubscriber(String id, Map<String, dynamic> input) async {
+    final response = await _dio.patch<Map<String, dynamic>>(
+      '${AppConfig.generatorsBasePath}/owner/subscribers/$id',
+      data: input,
+    );
+    return _unwrap(response.data);
+  }
+
+  Future<Map<String, dynamic>> updateOwnerSubscriberStatus(String id, String status) async {
+    final response = await _dio.patch<Map<String, dynamic>>(
+      '${AppConfig.generatorsBasePath}/owner/subscribers/$id/status',
+      data: {'status': status},
+    );
+    return _unwrap(response.data);
+  }
+
+  Future<Map<String, dynamic>> getOwnerAssignmentCatalog({required String type}) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '${AppConfig.generatorsBasePath}/owner/assignment-catalog',
+      queryParameters: {'type': type},
+    );
+    return _unwrap(response.data);
+  }
+
+  Future<Map<String, dynamic>> getCollectorDomain() async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '${AppConfig.generatorsBasePath}/collector/domain',
+    );
+    return _unwrap(response.data);
+  }
+
   Future<Map<String, dynamic>> pushOperation(Map<String, dynamic> operation) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '${AppConfig.generatorsBasePath}/sync/operations',
       data: operation,
     );
     return _unwrap(response.data);
+  }
+
+  Map<String, dynamic> _compact(Map<String, dynamic> values) {
+    return Map<String, dynamic>.fromEntries(
+      values.entries.where((entry) => entry.value != null && entry.value.toString().trim().isNotEmpty),
+    );
   }
 
   Map<String, dynamic> _unwrap(Map<String, dynamic>? envelope) {

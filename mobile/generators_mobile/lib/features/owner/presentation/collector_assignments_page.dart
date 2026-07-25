@@ -2,18 +2,22 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../domain/data/domain_repository.dart';
+import '../../domain/domain/generator_domain.dart';
 import '../data/collector_repository.dart';
 import '../domain/collector_account.dart';
 
 final class CollectorAssignmentsPage extends StatefulWidget {
   const CollectorAssignmentsPage({
     required this.repository,
+    required this.domainRepository,
     required this.tenantId,
     required this.collector,
     super.key,
   });
 
   final CollectorRepository repository;
+  final DomainRepository domainRepository;
   final String tenantId;
   final CollectorAccount collector;
 
@@ -39,8 +43,7 @@ final class _CollectorAssignmentsPageState extends State<CollectorAssignmentsPag
         tenantId: widget.tenantId,
         collectorId: widget.collector.id,
       );
-      if (!mounted) return;
-      setState(() => _assignments = assignments);
+      if (mounted) setState(() => _assignments = assignments);
     } on DioException catch (error) {
       _showMessage(_apiMessage(error));
     } finally {
@@ -51,7 +54,7 @@ final class _CollectorAssignmentsPageState extends State<CollectorAssignmentsPag
   Future<void> _addAssignment() async {
     final assignment = await showDialog<CollectorAssignment>(
       context: context,
-      builder: (context) => const _AssignmentDialog(),
+      builder: (_) => _AssignmentCatalogDialog(repository: widget.domainRepository),
     );
     if (assignment == null || !mounted) return;
     final duplicate = _assignments.any(
@@ -73,7 +76,7 @@ final class _CollectorAssignmentsPageState extends State<CollectorAssignmentsPag
         assignments: _assignments,
       );
       if (!mounted) return;
-      _showMessage('تم حفظ تخصيصات الجابي.');
+      _showMessage('تم حفظ تخصيصات الجابي والتحقق منها في السيرفر.');
       await _load();
     } on DioException catch (error) {
       _showMessage(_apiMessage(error));
@@ -119,7 +122,7 @@ final class _CollectorAssignmentsPageState extends State<CollectorAssignmentsPag
                     border: Border.all(color: AppTheme.orange.withValues(alpha: 0.45)),
                   ),
                   child: const Text(
-                    'Stage02: هذه مراجع تخصيص للمولدات أو المشتركين أو المسارات فقط. لا تنفذ قراءة أو جباية مالية.',
+                    'Stage03: لا يمكن كتابة معرف يدوي. اختر مولدة أو مسارًا أو مشتركًا حقيقيًا من نفس المؤسسة.',
                   ),
                 ),
                 Expanded(
@@ -135,7 +138,7 @@ final class _CollectorAssignmentsPageState extends State<CollectorAssignmentsPag
                               child: ListTile(
                                 leading: Icon(_iconForType(assignment.type), color: AppTheme.teal),
                                 title: Text(assignment.label?.isNotEmpty == true ? assignment.label! : assignment.targetId),
-                                subtitle: Text('${_labelForType(assignment.type)} • ${assignment.targetId}'),
+                                subtitle: Text(_labelForType(assignment.type)),
                                 trailing: IconButton(
                                   tooltip: 'إزالة',
                                   onPressed: () => setState(
@@ -185,80 +188,121 @@ final class _CollectorAssignmentsPageState extends State<CollectorAssignmentsPag
       };
 }
 
-final class _AssignmentDialog extends StatefulWidget {
-  const _AssignmentDialog();
+final class _AssignmentCatalogDialog extends StatefulWidget {
+  const _AssignmentCatalogDialog({required this.repository});
+  final DomainRepository repository;
 
   @override
-  State<_AssignmentDialog> createState() => _AssignmentDialogState();
+  State<_AssignmentCatalogDialog> createState() => _AssignmentCatalogDialogState();
 }
 
-final class _AssignmentDialogState extends State<_AssignmentDialog> {
-  final _formKey = GlobalKey<FormState>();
-  final _targetController = TextEditingController();
-  final _labelController = TextEditingController();
+final class _AssignmentCatalogDialogState extends State<_AssignmentCatalogDialog> {
   String _type = 'route';
+  List<AssignmentCatalogItem> _items = const [];
+  AssignmentCatalogItem? _selected;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _selected = null;
+    });
+    try {
+      final items = await widget.repository.assignmentCatalog(_type);
+      if (mounted) setState(() => _items = items);
+    } on DioException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_apiMessage(error))));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('إضافة تخصيص'),
-      content: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DropdownButtonFormField<String>(
-                value: _type,
-                decoration: const InputDecoration(labelText: 'نوع التخصيص'),
-                items: const [
-                  DropdownMenuItem(value: 'route', child: Text('مسار')),
-                  DropdownMenuItem(value: 'generator', child: Text('مولدة')),
-                  DropdownMenuItem(value: 'subscriber', child: Text('مشترك')),
-                ],
-                onChanged: (value) => setState(() => _type = value ?? 'route'),
+      title: const Text('اختيار تخصيص حقيقي'),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            DropdownButtonFormField<String>(
+              value: _type,
+              decoration: const InputDecoration(labelText: 'نوع التخصيص'),
+              items: const [
+                DropdownMenuItem(value: 'generator', child: Text('مولدة')),
+                DropdownMenuItem(value: 'route', child: Text('مسار')),
+                DropdownMenuItem(value: 'subscriber', child: Text('مشترك')),
+              ],
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() => _type = value);
+                _load();
+              },
+            ),
+            const SizedBox(height: 12),
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.all(22),
+                child: CircularProgressIndicator(),
+              )
+            else if (_items.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(18),
+                child: Text('لا توجد سجلات فعالة من هذا النوع.'),
+              )
+            else
+              DropdownButtonFormField<AssignmentCatalogItem>(
+                value: _selected,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'السجل'),
+                items: _items
+                    .map(
+                      (item) => DropdownMenuItem(
+                        value: item,
+                        child: Text('${item.label}${item.code == null ? '' : ' • ${item.code}'}'),
+                      ),
+                    )
+                    .toList(growable: false),
+                onChanged: (value) => setState(() => _selected = value),
               ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _targetController,
-                decoration: const InputDecoration(labelText: 'المعرّف المرجعي'),
-                validator: (value) => value == null || value.trim().isEmpty ? 'أدخل المعرّف المرجعي' : null,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _labelController,
-                decoration: const InputDecoration(labelText: 'الاسم الظاهر'),
-              ),
-            ],
-          ),
+          ],
         ),
       ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
         ElevatedButton(
-          onPressed: () {
-            if (!_formKey.currentState!.validate()) return;
-            Navigator.pop(
-              context,
-              CollectorAssignment(
-                id: 'local-${DateTime.now().microsecondsSinceEpoch}',
-                type: _type,
-                targetId: _targetController.text.trim(),
-                label: _labelController.text.trim().isEmpty ? null : _labelController.text.trim(),
-                metadata: const {},
-              ),
-            );
-          },
+          onPressed: _selected == null
+              ? null
+              : () => Navigator.pop(
+                    context,
+                    CollectorAssignment(
+                      id: 'local-${DateTime.now().microsecondsSinceEpoch}',
+                      type: _selected!.type,
+                      targetId: _selected!.id,
+                      label: _selected!.label,
+                      metadata: const {},
+                    ),
+                  ),
           child: const Text('إضافة'),
         ),
       ],
     );
   }
+}
 
-  @override
-  void dispose() {
-    _targetController.dispose();
-    _labelController.dispose();
-    super.dispose();
+String _apiMessage(DioException error) {
+  final data = error.response?.data;
+  if (data is Map && data['error'] is Map) {
+    final message = (data['error'] as Map)['message'];
+    if (message is String && message.isNotEmpty) return message;
   }
+  return 'تعذر تحميل قائمة التخصيصات.';
 }
