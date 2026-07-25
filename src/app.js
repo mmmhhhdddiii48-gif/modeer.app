@@ -5,6 +5,7 @@ const { config } = require('./config/env');
 const { authRouter } = require('./modules/auth');
 const { managerRouter } = require('./modules/manager');
 const { employeeRouter } = require('./modules/employee');
+const { generatorsRouter } = require('./modules/generators');
 const { notFound } = require('./middleware/notFound');
 const { errorHandler } = require('./middleware/errorHandler');
 
@@ -39,6 +40,8 @@ function createApp() {
   app.use('/manager', managerRouter);
 
   app.use('/employee', employeeRouter);
+
+  app.use('/generators', generatorsRouter);
 
   app.use(notFound);
   app.use(errorHandler);
