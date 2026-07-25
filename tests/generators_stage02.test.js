@@ -23,6 +23,11 @@ const {
   replaceOwnerCollectorAssignments,
   listCollectorOwnAssignments
 } = require('../src/modules/generators/generators.collectors.service');
+const {
+  createOwnerGenerator,
+  createOwnerRoute,
+  createOwnerSubscriber
+} = require('../src/modules/generators/generators.domain.service');
 
 function ownerAuth(owner) {
   return {
@@ -109,20 +114,28 @@ test('Stage02 permissions, assignment isolation, disable/reactivation, and passw
     (error) => error.code === 'INVALID_COLLECTOR_PERMISSION'
   );
 
+  const generatorA = createOwnerGenerator(authA, { code: 'G-A', name: 'مولدة أ' });
+  const routeA = createOwnerRoute(authA, { code: 'R-A', name: 'مسار حي الأمير', generator_id: generatorA.id });
+  const subscriberA = createOwnerSubscriber(authA, {
+    account_number: 'SUB-A-001', full_name: 'المشترك الأول', generator_id: generatorA.id, route_id: routeA.id
+  });
+  const generatorB = createOwnerGenerator(authB, { code: 'G-B', name: 'مولدة ب' });
+  const routeB = createOwnerRoute(authB, { code: 'R-B', name: 'مسار ب', generator_id: generatorB.id });
+
   replaceOwnerCollectorAssignments(authA, collectorA.id, {
     assignments: [
-      { type: 'route', target_id: 'route-zone-a', label: 'مسار حي الأمير' },
-      { type: 'subscriber', target_id: 'subscriber-001', label: 'المشترك الأول', metadata: { note: 'Stage02 reference only' } }
+      { type: 'route', target_id: routeA.id },
+      { type: 'subscriber', target_id: subscriberA.id }
     ]
   });
   replaceOwnerCollectorAssignments(authB, collectorB.id, {
-    assignments: [{ type: 'route', target_id: 'route-zone-b', label: 'مسار ب' }]
+    assignments: [{ type: 'route', target_id: routeB.id }]
   });
 
   const refreshedLoginA = collectorAuth('collector-a', 'collector-secret-a');
   const ownAssignments = listCollectorOwnAssignments(refreshedLoginA.auth);
   assert.equal(ownAssignments.assignments.length, 2);
-  assert.ok(ownAssignments.assignments.every((item) => item.target_id !== 'route-zone-b'));
+  assert.ok(ownAssignments.assignments.every((item) => item.target_id !== routeB.id));
 
   const disabled = updateOwnerCollectorStatus(authA, collectorA.id, { status: 'disabled' });
   assert.equal(disabled.collector.status, 'disabled');

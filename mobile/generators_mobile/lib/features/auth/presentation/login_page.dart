@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../collector/presentation/collector_home_page.dart';
+import '../../domain/data/domain_repository.dart';
 import '../../owner/data/collector_repository.dart';
 import '../../owner/presentation/owner_home_page.dart';
 import '../data/auth_repository.dart';
@@ -15,6 +16,7 @@ final class LoginPage extends StatefulWidget {
   const LoginPage({
     required this.authRepository,
     required this.collectorRepository,
+    required this.domainRepository,
     required this.onManualSync,
     this.restoredSession,
     super.key,
@@ -22,6 +24,7 @@ final class LoginPage extends StatefulWidget {
 
   final AuthRepository authRepository;
   final CollectorRepository collectorRepository;
+  final DomainRepository domainRepository;
   final Future<void> Function() onManualSync;
   final AuthSession? restoredSession;
 
@@ -106,6 +109,7 @@ final class _LoginPageState extends State<LoginPage> {
         return OwnerHomePage(
           session: session,
           repository: widget.collectorRepository,
+          domainRepository: widget.domainRepository,
           online: _online,
           onLogout: _logout,
           onManualSync: widget.onManualSync,
@@ -113,7 +117,7 @@ final class _LoginPageState extends State<LoginPage> {
       }
       return CollectorHomePage(
         session: session,
-        repository: widget.collectorRepository,
+        domainRepository: widget.domainRepository,
         online: _online,
         onLogout: _logout,
         onManualSync: widget.onManualSync,

@@ -1,7 +1,7 @@
 name: nukhba_generators_mobile
-description: النخبة لإدارة المولدات والجباية Mobile - Stage02 owner collector foundation.
+description: النخبة لإدارة المولدات والجباية Mobile - Stage03 generators subscribers and routes foundation.
 publish_to: none
-version: 0.2.0+2
+version: 0.3.0+3
 
 environment:
   sdk: '>=3.3.0 <4.0.0'

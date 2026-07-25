@@ -2,6 +2,7 @@ abstract final class OwnerFeatureManifest {
   static const List<String> plannedModules = [
     'dashboard',
     'generators',
+    'routes',
     'subscribers',
     'collectors',
     'readings',
@@ -13,7 +14,9 @@ abstract final class OwnerFeatureManifest {
     'collectorSyncAudit',
   ];
 
-  static const bool collectorProvisioningEnabledInStage02 = true;
-  static const bool collectorAssignmentFoundationEnabledInStage02 = true;
-  static const bool financialWorkflowsEnabledInStage02 = false;
+  static const bool collectorProvisioningEnabled = true;
+  static const bool realDomainContractsEnabledInStage03 = true;
+  static const bool verifiedAssignmentsEnabledInStage03 = true;
+  static const bool hardDeleteEnabledInStage03 = false;
+  static const bool financialWorkflowsEnabledInStage03 = false;
 }
