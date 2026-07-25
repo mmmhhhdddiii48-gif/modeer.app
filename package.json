@@ -13,7 +13,10 @@
     "seed:agent": "node scripts/seed-agent.js",
     "seed:generators": "node scripts/seed-generators-stage01.js",
     "test:generators:stage01": "node --test tests/generators_stage01.test.js",
-    "render:check": "node scripts/check-db.js"
+    "test:generators:stage02": "node --test tests/generators_stage02.test.js",
+    "test:generators": "node --test tests/generators_stage01.test.js tests/generators_stage02.test.js tests/generators_stage02_contract.test.js",
+    "render:check": "node scripts/check-db.js",
+    "test:generators:stage02:contract": "node --test tests/generators_stage02_contract.test.js"
   },
   "engines": {
     "node": ">=22.16.0"

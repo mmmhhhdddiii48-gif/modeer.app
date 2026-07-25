@@ -15,5 +15,6 @@ abstract final class CollectorFeatureManifest {
     'otherCollectorsData',
   ];
 
-  static const bool financialWorkflowsEnabledInStage01 = false;
+  static const bool assignmentsVisibleInStage02 = true;
+  static const bool financialWorkflowsEnabledInStage02 = false;
 }

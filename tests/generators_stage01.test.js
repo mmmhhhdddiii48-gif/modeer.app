@@ -19,7 +19,7 @@ const {
 const { verifyGeneratorAccessToken } = require('../src/modules/generators/generators.token');
 const { recordSyncOperation, getGeneratorSyncStatus } = require('../src/modules/generators/generators.sync.service');
 
-test('Stage01 authentication, tenant isolation, and idempotency foundation', () => {
+test('Stage01 authentication, tenant isolation, and idempotency foundation remains intact', () => {
   const ownerA = provisionTenantOwnerForStage01({
     tenantName: 'مولدة أ', username: 'owner-a', password: 'secret-a', fullName: 'صاحب أ', collectorLimit: 3
   });
@@ -71,7 +71,7 @@ test('Stage01 authentication, tenant isolation, and idempotency foundation', () 
       operation_type: 'collection.create',
       payload: { amount: 50000 }
     }),
-    (error) => error.code === 'STAGE01_OPERATION_NOT_ENABLED'
+    (error) => error.code === 'STAGE02_OPERATION_NOT_ENABLED'
   );
 
   const otherTenant = recordSyncOperation(authB, operation);

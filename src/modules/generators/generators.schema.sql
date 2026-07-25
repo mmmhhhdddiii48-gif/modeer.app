@@ -1,5 +1,5 @@
--- Nukhba Generators Mobile - Stage01 additive schema.
--- This file is isolated from the existing manager/employee tables and is idempotent.
+-- Nukhba Generators Mobile - Stage02 additive schema.
+-- Isolated from existing manager/employee tables and safe to run repeatedly.
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS generator_tenants (
@@ -100,6 +100,37 @@ CREATE TABLE IF NOT EXISTS generator_audit_logs (
 CREATE INDEX IF NOT EXISTS idx_generator_audit_tenant_time ON generator_audit_logs(tenant_id, server_created_at);
 CREATE INDEX IF NOT EXISTS idx_generator_audit_actor ON generator_audit_logs(actor_account_id);
 
+-- Stage02: owner-managed collector assignment foundation.
+-- Targets are public references only in this stage; subscriber/generator financial records are not created yet.
+CREATE TABLE IF NOT EXISTS generator_collector_assignments (
+  id INTEGER PRIMARY KEY,
+  public_id TEXT NOT NULL UNIQUE,
+  tenant_id INTEGER NOT NULL,
+  collector_account_id INTEGER NOT NULL,
+  assignment_type TEXT NOT NULL CHECK (assignment_type IN ('generator', 'subscriber', 'route')),
+  target_public_id TEXT NOT NULL,
+  target_label TEXT,
+  metadata_json TEXT NOT NULL DEFAULT '{}',
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+  assigned_by_account_id INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  CONSTRAINT uq_generator_collector_assignment UNIQUE (
+    tenant_id, collector_account_id, assignment_type, target_public_id
+  ),
+  CONSTRAINT fk_generator_assignment_tenant FOREIGN KEY (tenant_id)
+    REFERENCES generator_tenants(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  CONSTRAINT fk_generator_assignment_collector FOREIGN KEY (collector_account_id)
+    REFERENCES generator_accounts(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+  CONSTRAINT fk_generator_assignment_owner FOREIGN KEY (assigned_by_account_id)
+    REFERENCES generator_accounts(id) ON UPDATE CASCADE ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_generator_assignments_collector
+  ON generator_collector_assignments(tenant_id, collector_account_id, status);
+CREATE INDEX IF NOT EXISTS idx_generator_assignments_target
+  ON generator_collector_assignments(tenant_id, assignment_type, target_public_id);
+
 CREATE TRIGGER IF NOT EXISTS trg_generator_tenants_updated_at
 AFTER UPDATE ON generator_tenants
 FOR EACH ROW WHEN NEW.updated_at = OLD.updated_at
@@ -112,4 +143,11 @@ AFTER UPDATE ON generator_accounts
 FOR EACH ROW WHEN NEW.updated_at = OLD.updated_at
 BEGIN
   UPDATE generator_accounts SET updated_at = datetime('now') WHERE id = OLD.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_generator_assignments_updated_at
+AFTER UPDATE ON generator_collector_assignments
+FOR EACH ROW WHEN NEW.updated_at = OLD.updated_at
+BEGIN
+  UPDATE generator_collector_assignments SET updated_at = datetime('now') WHERE id = OLD.id;
 END;

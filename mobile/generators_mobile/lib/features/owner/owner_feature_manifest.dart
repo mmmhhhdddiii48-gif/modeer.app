@@ -13,5 +13,7 @@ abstract final class OwnerFeatureManifest {
     'collectorSyncAudit',
   ];
 
-  static const bool financialWorkflowsEnabledInStage01 = false;
+  static const bool collectorProvisioningEnabledInStage02 = true;
+  static const bool collectorAssignmentFoundationEnabledInStage02 = true;
+  static const bool financialWorkflowsEnabledInStage02 = false;
 }

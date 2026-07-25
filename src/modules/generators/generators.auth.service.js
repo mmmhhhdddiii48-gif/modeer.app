@@ -15,6 +15,7 @@ const {
   hashRefreshToken,
   refreshTokenExpiryIso
 } = require('./generators.token');
+const { DEFAULT_COLLECTOR_PERMISSIONS } = require('./generators.collectors.service');
 
 function loginGeneratorAccount(body) {
   const login = typeof body?.login === 'string' ? body.login.trim() : '';
@@ -88,15 +89,16 @@ function issueSession(context) {
 }
 
 function serializeSession(context, access, refreshToken, refreshExpiresAt) {
+  const serialized = serializeContext(context);
   return {
     access_token: access.token,
     token_type: 'Bearer',
     expires_in: access.expiresIn,
     refresh_token: refreshToken,
     refresh_expires_at: refreshExpiresAt,
-    account: serializeContext(context).account,
-    tenant: serializeContext(context).tenant,
-    permissions: permissionsForRole(context.role)
+    account: serialized.account,
+    tenant: serialized.tenant,
+    permissions: serialized.permissions
   };
 }
 
@@ -119,7 +121,7 @@ function serializeContext(context) {
       subscription_expires_at: context.subscription_expires_at,
       collector_limit: Number(context.collector_limit || 0)
     },
-    permissions: permissionsForRole(context.role)
+    permissions: permissionsForContext(context)
   };
 }
 
@@ -139,6 +141,17 @@ function assertMobileAccountAllowed(context) {
   }
 }
 
+function permissionsForContext(context) {
+  if (!context) return [];
+  if (context.role === 'owner') return permissionsForRole('owner');
+  if (context.role === 'collector') {
+    const stored = parsePermissions(context.permissions_json);
+    const allowed = new Set(DEFAULT_COLLECTOR_PERMISSIONS);
+    return stored.filter((permission) => allowed.has(permission));
+  }
+  return [];
+}
+
 function permissionsForRole(role) {
   if (role === 'owner') {
     return [
@@ -147,13 +160,17 @@ function permissionsForRole(role) {
       'maintenance.manage', 'reports.read', 'sync.audit.read'
     ];
   }
-  if (role === 'collector') {
-    return [
-      'assignments.read', 'subscribers.assigned.read', 'readings.create',
-      'collections.create', 'collections.own.read', 'sync.own.read'
-    ];
-  }
+  if (role === 'collector') return [...DEFAULT_COLLECTOR_PERMISSIONS];
   return [];
+}
+
+function parsePermissions(value) {
+  try {
+    const parsed = JSON.parse(value || '[]');
+    return Array.isArray(parsed) ? [...new Set(parsed.filter((item) => typeof item === 'string'))] : [];
+  } catch (_) {
+    return [];
+  }
 }
 
 module.exports = {
@@ -162,5 +179,6 @@ module.exports = {
   logoutGeneratorSession,
   getCurrentGeneratorContext,
   assertMobileAccountAllowed,
+  permissionsForContext,
   permissionsForRole
 };

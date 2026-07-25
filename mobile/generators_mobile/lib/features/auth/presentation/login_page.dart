@@ -5,18 +5,23 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../collector/presentation/collector_home_page.dart';
+import '../../owner/data/collector_repository.dart';
+import '../../owner/presentation/owner_home_page.dart';
 import '../data/auth_repository.dart';
 import '../domain/auth_session.dart';
 
 final class LoginPage extends StatefulWidget {
   const LoginPage({
     required this.authRepository,
+    required this.collectorRepository,
     required this.onManualSync,
     this.restoredSession,
     super.key,
   });
 
   final AuthRepository authRepository;
+  final CollectorRepository collectorRepository;
   final Future<void> Function() onManualSync;
   final AuthSession? restoredSession;
 
@@ -73,6 +78,11 @@ final class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  Future<void> _logout() async {
+    await widget.authRepository.clearSession();
+    if (mounted) setState(() => _session = null);
+  }
+
   String _apiMessage(DioException error) {
     final data = error.response?.data;
     if (data is Map && data['error'] is Map) {
@@ -90,6 +100,26 @@ final class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final session = _session;
+    if (session != null) {
+      if (session.isOwner) {
+        return OwnerHomePage(
+          session: session,
+          repository: widget.collectorRepository,
+          online: _online,
+          onLogout: _logout,
+          onManualSync: widget.onManualSync,
+        );
+      }
+      return CollectorHomePage(
+        session: session,
+        repository: widget.collectorRepository,
+        online: _online,
+        onLogout: _logout,
+        onManualSync: widget.onManualSync,
+      );
+    }
+
     return Scaffold(
       body: SafeArea(
         child: LayoutBuilder(
@@ -105,6 +135,8 @@ final class _LoginPageState extends State<LoginPage> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        const Icon(Icons.electrical_services, size: 58, color: AppTheme.teal),
+                        const SizedBox(height: 12),
                         const Text(
                           'النخبة لإدارة المولدات والجباية',
                           textAlign: TextAlign.center,
@@ -113,14 +145,7 @@ final class _LoginPageState extends State<LoginPage> {
                         const SizedBox(height: 10),
                         _ConnectionBanner(online: _online),
                         const SizedBox(height: 24),
-                        if (_session != null)
-                          _SignedInCard(
-                            session: _session!,
-                            onLogout: _logout,
-                            onManualSync: widget.onManualSync,
-                          )
-                        else
-                          _loginForm(),
+                        _loginForm(),
                       ],
                     ),
                   ),
@@ -154,7 +179,10 @@ final class _LoginPageState extends State<LoginPage> {
               controller: _loginController,
               textInputAction: TextInputAction.next,
               autofillHints: const [AutofillHints.username],
-              decoration: const InputDecoration(labelText: 'رقم الهاتف أو اسم المستخدم', prefixIcon: Icon(Icons.person_outline)),
+              decoration: const InputDecoration(
+                labelText: 'رقم الهاتف أو اسم المستخدم',
+                prefixIcon: Icon(Icons.person_outline),
+              ),
               validator: (value) => value == null || value.trim().isEmpty ? 'أدخل اسم المستخدم أو رقم الهاتف' : null,
             ),
             const SizedBox(height: 14),
@@ -162,7 +190,9 @@ final class _LoginPageState extends State<LoginPage> {
               controller: _passwordController,
               obscureText: _obscurePassword,
               autofillHints: const [AutofillHints.password],
-              onFieldSubmitted: (_) => _loading ? null : _submit(),
+              onFieldSubmitted: (_) {
+                if (!_loading) _submit();
+              },
               decoration: InputDecoration(
                 labelText: 'كلمة المرور',
                 prefixIcon: const Icon(Icons.lock_outline),
@@ -182,7 +212,7 @@ final class _LoginPageState extends State<LoginPage> {
             ),
             const SizedBox(height: 12),
             const Text(
-              'لا يوجد تسجيل ذاتي. الحساب يُنشأ من إدارة النظام فقط.',
+              'حساب صاحب المولدة ينشئه مالك النظام، وحساب الجابي ينشئه صاحب المولدة ضمن الحد المسموح.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 12, color: Colors.white54),
             ),
@@ -190,11 +220,6 @@ final class _LoginPageState extends State<LoginPage> {
         ),
       ),
     );
-  }
-
-  Future<void> _logout() async {
-    await widget.authRepository.clearSession();
-    if (mounted) setState(() => _session = null);
   }
 
   @override
@@ -212,96 +237,23 @@ final class _ConnectionBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = online ? AppTheme.teal : AppTheme.orange;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: (online ? AppTheme.teal : AppTheme.orange).withValues(alpha: 0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: (online ? AppTheme.teal : AppTheme.orange).withValues(alpha: 0.5)),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(online ? Icons.cloud_done_outlined : Icons.cloud_off_outlined, size: 19, color: online ? AppTheme.teal : AppTheme.orange),
+          Icon(online ? Icons.cloud_done_outlined : Icons.cloud_off_outlined, size: 19, color: color),
           const SizedBox(width: 8),
-          Text(online ? 'متصل — المزامنة متاحة' : 'بدون إنترنت — الحركات ستبقى محليًا', style: const TextStyle(fontWeight: FontWeight.w700)),
-        ],
-      ),
-    );
-  }
-}
-
-final class _SignedInCard extends StatefulWidget {
-  const _SignedInCard({
-    required this.session,
-    required this.onLogout,
-    required this.onManualSync,
-  });
-
-  final AuthSession session;
-  final VoidCallback onLogout;
-  final Future<void> Function() onManualSync;
-
-  @override
-  State<_SignedInCard> createState() => _SignedInCardState();
-}
-
-final class _SignedInCardState extends State<_SignedInCard> {
-  bool _syncing = false;
-
-  Future<void> _syncNow() async {
-    setState(() => _syncing = true);
-    try {
-      await widget.onManualSync();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('اكتملت محاولة المزامنة. الحركات المؤكدة فقط تُعلَّم كمستلمة.')),
-      );
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تعذرت المزامنة الآن. ستبقى الحركات محفوظة محليًا.')),
-      );
-    } finally {
-      if (mounted) setState(() => _syncing = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: AppTheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppTheme.teal.withValues(alpha: 0.55)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Icon(Icons.verified_user_outlined, size: 46, color: AppTheme.teal),
-          const SizedBox(height: 12),
-          Text(widget.session.fullName, textAlign: TextAlign.center, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 6),
-          Text(widget.session.tenantName, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70)),
-          const SizedBox(height: 18),
           Text(
-            'نوع الحساب: ${widget.session.isOwner ? 'صاحب المولدة' : 'الجابي'}',
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: AppTheme.orange, fontWeight: FontWeight.w800),
+            online ? 'متصل — المزامنة متاحة' : 'بدون إنترنت — الحركات ستبقى محليًا',
+            style: const TextStyle(fontWeight: FontWeight.w700),
           ),
-          const SizedBox(height: 8),
-          const Text('Stage01: تم تثبيت الدخول والعزل فقط. الوظائف المالية غير مفعلة بعد.', textAlign: TextAlign.center),
-          const SizedBox(height: 18),
-          ElevatedButton.icon(
-            onPressed: _syncing ? null : _syncNow,
-            icon: _syncing
-                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.sync),
-            label: const Text('مزامنة الآن'),
-          ),
-          const SizedBox(height: 10),
-          OutlinedButton(onPressed: widget.onLogout, child: const Text('تسجيل الخروج')),
         ],
       ),
     );

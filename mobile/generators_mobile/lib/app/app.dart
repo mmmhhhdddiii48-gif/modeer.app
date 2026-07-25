@@ -11,6 +11,7 @@ import '../features/auth/data/auth_repository.dart';
 import '../features/auth/domain/auth_session.dart';
 import '../features/auth/presentation/login_page.dart';
 import '../features/auth/presentation/splash_page.dart';
+import '../features/owner/data/collector_repository.dart';
 
 final class NukhbaGeneratorsApp extends StatefulWidget {
   const NukhbaGeneratorsApp({super.key});
@@ -21,6 +22,7 @@ final class NukhbaGeneratorsApp extends StatefulWidget {
 
 final class _NukhbaGeneratorsAppState extends State<NukhbaGeneratorsApp> {
   late final AuthRepository _authRepository;
+  late final CollectorRepository _collectorRepository;
   late final SyncEngine _syncEngine;
   AuthSession? _restoredSession;
   bool _restoring = true;
@@ -31,6 +33,7 @@ final class _NukhbaGeneratorsAppState extends State<NukhbaGeneratorsApp> {
     final tokens = SecureTokenStorage();
     final api = ApiClient(tokenStorage: tokens);
     _authRepository = AuthRepository(api: api, tokens: tokens);
+    _collectorRepository = CollectorRepository(api: api, database: LocalDatabase.instance);
     _syncEngine = SyncEngine(database: LocalDatabase.instance, api: api);
     _syncEngine.start();
     _restore();
@@ -64,11 +67,15 @@ final class _NukhbaGeneratorsAppState extends State<NukhbaGeneratorsApp> {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      builder: (context, child) => Directionality(textDirection: TextDirection.rtl, child: child ?? const SizedBox.shrink()),
+      builder: (context, child) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: child ?? const SizedBox.shrink(),
+      ),
       home: _restoring
           ? const SplashPage()
           : LoginPage(
               authRepository: _authRepository,
+              collectorRepository: _collectorRepository,
               restoredSession: _restoredSession,
               onManualSync: _syncEngine.flush,
             ),
