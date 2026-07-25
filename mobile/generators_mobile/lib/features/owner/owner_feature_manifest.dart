@@ -15,8 +15,11 @@ abstract final class OwnerFeatureManifest {
   ];
 
   static const bool collectorProvisioningEnabled = true;
-  static const bool realDomainContractsEnabledInStage03 = true;
-  static const bool verifiedAssignmentsEnabledInStage03 = true;
-  static const bool hardDeleteEnabledInStage03 = false;
-  static const bool financialWorkflowsEnabledInStage03 = false;
+  static const bool realDomainContractsEnabled = true;
+  static const bool verifiedAssignmentsEnabled = true;
+  static const bool meterReadingOfflineEnabledInStage04 = true;
+  static const bool readingPeriodLockEnabledInStage04 = true;
+  static const bool hardDeleteEnabledInStage04 = false;
+  static const bool billingEnabledInStage04 = false;
+  static const bool collectionEnabledInStage04 = false;
 }

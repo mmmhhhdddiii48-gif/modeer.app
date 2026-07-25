@@ -8,7 +8,7 @@ function read(relativePath) {
   return fs.readFileSync(path.join(root, relativePath), 'utf8');
 }
 
-test('Stage03 domain contract is tenant-scoped, additive, and financially locked', () => {
+test('Stage03 domain contract stays tenant-scoped and additive through Stage04', () => {
   const schema = read('src/modules/generators/generators.schema.sql');
   const routes = read('src/modules/generators/generators.routes.js');
   const domain = fs.readdirSync(path.join(root, 'src/modules/generators'))
@@ -45,12 +45,12 @@ test('Stage03 domain contract is tenant-scoped, additive, and financially locked
   assert.match(collectors, /resolveAssignmentTarget/);
   assert.doesNotMatch(collectors, /item\?\.label/);
 
-  assert.match(sync, /STAGE03_OPERATION_NOT_ENABLED/);
-  assert.doesNotMatch(sync, /reading\.create['"]\s*\]/);
+  assert.match(sync, /STAGE04_OPERATION_NOT_ENABLED/);
+  assert.match(sync, /reading\.create/);
   assert.doesNotMatch(sync, /collection\.create['"]\s*\]/);
 });
 
-test('Stage03 mobile contract keeps one Flutter app, offline cache, and no restricted extras', () => {
+test('Stage03 mobile domain remains one Flutter app with offline cache and no restricted extras', () => {
   const appConfig = read('mobile/generators_mobile/lib/core/config/app_config.dart');
   const api = read('mobile/generators_mobile/lib/core/network/api_client.dart');
   const domainRepository = read('mobile/generators_mobile/lib/features/domain/data/domain_repository.dart');

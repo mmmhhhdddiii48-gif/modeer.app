@@ -17,6 +17,8 @@ abstract final class CollectorFeatureManifest {
     'otherCollectorsData',
   ];
 
-  static const bool assignedDomainVisibleInStage03 = true;
-  static const bool financialWorkflowsEnabledInStage03 = false;
+  static const bool assignedDomainVisible = true;
+  static const bool meterReadingOfflineEnabledInStage04 = true;
+  static const bool collectionEnabledInStage04 = false;
+  static const bool financialWorkflowsEnabledInStage04 = false;
 }

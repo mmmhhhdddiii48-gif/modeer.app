@@ -5,12 +5,17 @@ const { getDatabase } = require('../../db');
 const { hashPassword } = require('../../utils/password');
 const { httpError } = require('../../utils/httpError');
 
-const SCHEMA_FILE = path.join(__dirname, 'generators.schema.sql');
+const SCHEMA_FILES = [
+  path.join(__dirname, 'generators.schema.sql'),
+  path.join(__dirname, 'generators.readings.schema.sql')
+];
 const initializedDatabases = new WeakSet();
 
 function ensureGeneratorsSchema(db = getDatabase()) {
   if (!initializedDatabases.has(db)) {
-    db.exec(fs.readFileSync(SCHEMA_FILE, 'utf8'));
+    for (const schemaFile of SCHEMA_FILES) {
+      db.exec(fs.readFileSync(schemaFile, 'utf8'));
+    }
     initializedDatabases.add(db);
   }
   return db;

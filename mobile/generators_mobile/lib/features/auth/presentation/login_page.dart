@@ -9,6 +9,7 @@ import '../../collector/presentation/collector_home_page.dart';
 import '../../domain/data/domain_repository.dart';
 import '../../owner/data/collector_repository.dart';
 import '../../owner/presentation/owner_home_page.dart';
+import '../../readings/data/reading_repository.dart';
 import '../data/auth_repository.dart';
 import '../domain/auth_session.dart';
 
@@ -17,6 +18,7 @@ final class LoginPage extends StatefulWidget {
     required this.authRepository,
     required this.collectorRepository,
     required this.domainRepository,
+    required this.readingRepository,
     required this.onManualSync,
     this.restoredSession,
     super.key,
@@ -25,6 +27,7 @@ final class LoginPage extends StatefulWidget {
   final AuthRepository authRepository;
   final CollectorRepository collectorRepository;
   final DomainRepository domainRepository;
+  final ReadingRepository readingRepository;
   final Future<void> Function() onManualSync;
   final AuthSession? restoredSession;
 
@@ -110,6 +113,7 @@ final class _LoginPageState extends State<LoginPage> {
           session: session,
           repository: widget.collectorRepository,
           domainRepository: widget.domainRepository,
+          readingRepository: widget.readingRepository,
           online: _online,
           onLogout: _logout,
           onManualSync: widget.onManualSync,
@@ -118,6 +122,7 @@ final class _LoginPageState extends State<LoginPage> {
       return CollectorHomePage(
         session: session,
         domainRepository: widget.domainRepository,
+        readingRepository: widget.readingRepository,
         online: _online,
         onLogout: _logout,
         onManualSync: widget.onManualSync,
