@@ -8,6 +8,12 @@ on:
     paths:
       - 'mobile/generators_mobile/**'
       - '.github/workflows/build-generators-apk.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'mobile/generators_mobile/**'
+      - '.github/workflows/build-generators-apk.yml'
 
 permissions:
   contents: read
