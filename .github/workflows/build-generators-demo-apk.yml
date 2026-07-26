@@ -1,0 +1,83 @@
+name: Build Generators Demo APK
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'mobile/generators_mobile/**'
+      - '.github/workflows/build-generators-demo-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-demo-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    defaults:
+      run:
+        working-directory: mobile/generators_mobile
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Generate Android platform
+        run: flutter create . --project-name nukhba_generators_mobile --org com.nukhba --platforms=android
+
+      - name: Configure demo Android package
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          gradle = Path('android/app/build.gradle.kts')
+          text = gradle.read_text(encoding='utf-8')
+          text = text.replace('applicationId = "com.nukhba.nukhba_generators_mobile"', 'applicationId = "com.nukhba.generatorsdemo"')
+          text = text.replace('minSdk = flutter.minSdkVersion', 'minSdk = 24')
+          gradle.write_text(text, encoding='utf-8')
+
+          manifest = Path('android/app/src/main/AndroidManifest.xml')
+          text = manifest.read_text(encoding='utf-8')
+          text = text.replace(
+              'android:label="nukhba_generators_mobile"',
+              'android:label="النخبة - تجربة 7 أيام"\n        android:allowBackup="false"\n        android:fullBackupContent="false"',
+          )
+          manifest.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze demo entrypoint
+        run: dart analyze lib/demo_main.dart
+
+      - name: Run demo tests
+        run: flutter test test/demo_trial_test.dart test/demo_store_test.dart
+
+      - name: Build release APK
+        run: flutter build apk --release -t lib/demo_main.dart --build-name 1.0.0 --build-number 1
+
+      - name: Prepare named APK
+        run: |
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-release.apk dist/Nukhba_Generators_Demo_7_Days_v1.0.0.apk
+          sha256sum dist/Nukhba_Generators_Demo_7_Days_v1.0.0.apk > dist/SHA256.txt
+
+      - name: Upload demo APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nukhba_Generators_Demo_7_Days_v1.0.0
+          path: |
+            mobile/generators_mobile/dist/Nukhba_Generators_Demo_7_Days_v1.0.0.apk
+            mobile/generators_mobile/dist/SHA256.txt
+          if-no-files-found: error
+          retention-days: 30
