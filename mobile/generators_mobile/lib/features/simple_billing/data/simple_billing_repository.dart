@@ -51,4 +51,25 @@ final class SimpleBillingRepository {
       Map<String, dynamic>.from(data['payment'] as Map? ?? const {}),
     );
   }
+
+  Future<CollectorCollectionsWorkspace> getCollectorInvoices({String? query}) async =>
+      CollectorCollectionsWorkspace.fromJson(
+        await _api.getCollectorInvoices(query: query),
+      );
+
+  Future<CollectorPaymentResult> recordCollectorPayment({
+    required String invoiceId,
+    required int amountIqd,
+    required String paymentMethod,
+    String? note,
+  }) async {
+    final data = await _api.recordCollectorPayment(
+      invoiceId: invoiceId,
+      operationUuid: const Uuid().v4(),
+      amountIqd: amountIqd,
+      paymentMethod: paymentMethod,
+      note: note,
+    );
+    return CollectorPaymentResult.fromJson(data);
+  }
 }

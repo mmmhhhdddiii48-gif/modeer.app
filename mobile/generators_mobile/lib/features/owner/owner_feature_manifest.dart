@@ -8,6 +8,7 @@ abstract final class OwnerFeatureManifest {
     'readings',
     'monthlyInvoices',
     'simplePayments',
+    'collectorOnlinePayments',
   ];
 
   static const bool collectorProvisioningEnabled = true;
@@ -18,6 +19,9 @@ abstract final class OwnerFeatureManifest {
   static const bool directMonthlyInvoicesEnabled = true;
   static const bool simplePaymentsEnabled = true;
   static const bool receiptEnabled = true;
+  static const bool collectorOnlinePaymentsEnabled = true;
+  static const bool collectorAssignmentEnforced = true;
+  static const bool collectorOfflineCollectionEnabled = false;
   static const bool draftWorkflowEnabled = false;
   static const bool reviewWorkflowEnabled = false;
   static const bool approvalWorkflowEnabled = false;

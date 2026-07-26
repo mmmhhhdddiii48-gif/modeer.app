@@ -83,25 +83,45 @@ final class InvoicePayment {
     required this.paymentMethod,
     required this.createdAt,
     this.note,
+    this.receivedByName,
+    this.receivedByRole,
   });
 
-  factory InvoicePayment.fromJson(Map<String, dynamic> json) => InvoicePayment(
-        id: json['id']?.toString() ?? '',
-        receiptNumber: json['receipt_number']?.toString() ?? '',
-        amountIqd: _int(json['amount_iqd']),
-        paymentMethod: json['payment_method']?.toString() ?? 'cash',
-        note: json['note']?.toString(),
-        createdAt: json['created_at']?.toString() ?? '',
-      );
+  factory InvoicePayment.fromJson(Map<String, dynamic> json) {
+    final receiver = json['received_by'] is Map
+        ? Map<String, dynamic>.from(json['received_by'] as Map)
+        : const <String, dynamic>{};
+    return InvoicePayment(
+      id: json['id']?.toString() ?? '',
+      receiptNumber: json['receipt_number']?.toString() ?? '',
+      amountIqd: _int(json['amount_iqd']),
+      paymentMethod: json['payment_method']?.toString() ?? 'cash',
+      note: json['note']?.toString(),
+      receivedByName: receiver['name']?.toString(),
+      receivedByRole: receiver['role']?.toString(),
+      createdAt: json['created_at']?.toString() ?? '',
+    );
+  }
 
   final String id;
   final String receiptNumber;
   final int amountIqd;
   final String paymentMethod;
   final String? note;
+  final String? receivedByName;
+  final String? receivedByRole;
   final String createdAt;
 
-  String get methodLabel => paymentMethod == 'transfer' ? 'تحويل' : 'نقد';
+  String get methodLabel {
+    final method = paymentMethod == 'transfer' ? 'تحويل' : 'نقد';
+    final receiver = receiverLabel;
+    return receiver.isEmpty ? method : '$method • $receiver';
+  }
+  String get receiverLabel {
+    final name = receivedByName;
+    if (name == null || name.isEmpty) return '';
+    return receivedByRole == 'collector' ? 'استلمها الجابي: $name' : 'استلمها: $name';
+  }
 }
 
 final class MonthlyInvoice {
@@ -120,6 +140,10 @@ final class MonthlyInvoice {
     required this.remainingAmountIqd,
     required this.consumption,
     required this.payments,
+    this.periodKey,
+    this.phone,
+    this.area,
+    this.routeName,
     this.meterNumber,
     this.lastPaymentAt,
   });
@@ -130,6 +154,10 @@ final class MonthlyInvoice {
         status: json['status']?.toString() ?? 'unpaid',
         subscriberName: json['subscriber_name']?.toString() ?? '',
         accountNumber: json['account_number']?.toString() ?? '',
+        periodKey: json['period_key']?.toString(),
+        phone: json['phone']?.toString(),
+        area: json['area']?.toString(),
+        routeName: json['route_name']?.toString(),
         meterNumber: json['meter_number']?.toString(),
         generatorName: json['generator_name']?.toString() ?? '',
         contractedAmperes: _int(json['contracted_amperes']),
@@ -151,6 +179,10 @@ final class MonthlyInvoice {
   final String status;
   final String subscriberName;
   final String accountNumber;
+  final String? periodKey;
+  final String? phone;
+  final String? area;
+  final String? routeName;
   final String? meterNumber;
   final String generatorName;
   final int contractedAmperes;
@@ -238,6 +270,90 @@ final class MonthlyWorkspace {
   final List<MonthlyGeneratorPrice> generators;
   final List<MonthlyInvoice> invoices;
   final MonthlySummary summary;
+}
+
+final class CollectorCollectionsSummary {
+  const CollectorCollectionsSummary({
+    required this.invoiceCount,
+    required this.totalIqd,
+    required this.paidIqd,
+    required this.remainingIqd,
+    required this.unpaidCount,
+    required this.partialCount,
+    required this.paidCount,
+  });
+
+  factory CollectorCollectionsSummary.fromJson(Map<String, dynamic> json) =>
+      CollectorCollectionsSummary(
+        invoiceCount: _int(json['invoice_count']),
+        totalIqd: _int(json['total_iqd']),
+        paidIqd: _int(json['paid_iqd']),
+        remainingIqd: _int(json['remaining_iqd']),
+        unpaidCount: _int(json['unpaid_count']),
+        partialCount: _int(json['partial_count']),
+        paidCount: _int(json['paid_count']),
+      );
+
+  final int invoiceCount;
+  final int totalIqd;
+  final int paidIqd;
+  final int remainingIqd;
+  final int unpaidCount;
+  final int partialCount;
+  final int paidCount;
+}
+
+final class CollectorCollectionsWorkspace {
+  const CollectorCollectionsWorkspace({
+    required this.invoices,
+    required this.summary,
+    required this.onlineRequired,
+  });
+
+  factory CollectorCollectionsWorkspace.fromJson(Map<String, dynamic> json) =>
+      CollectorCollectionsWorkspace(
+        invoices: (json['invoices'] as List? ?? const [])
+            .whereType<Map>()
+            .map((item) => MonthlyInvoice.fromJson(Map<String, dynamic>.from(item)))
+            .toList(growable: false),
+        summary: CollectorCollectionsSummary.fromJson(
+          Map<String, dynamic>.from(json['summary'] as Map? ?? const {}),
+        ),
+        onlineRequired: json['online_required'] != false,
+      );
+
+  final List<MonthlyInvoice> invoices;
+  final CollectorCollectionsSummary summary;
+  final bool onlineRequired;
+}
+
+final class CollectorPaymentResult {
+  const CollectorPaymentResult({
+    required this.payment,
+    required this.invoiceId,
+    required this.remainingAmountIqd,
+    required this.status,
+    required this.duplicate,
+  });
+
+  factory CollectorPaymentResult.fromJson(Map<String, dynamic> json) {
+    final invoice = Map<String, dynamic>.from(json['invoice'] as Map? ?? const {});
+    return CollectorPaymentResult(
+      payment: InvoicePayment.fromJson(
+        Map<String, dynamic>.from(json['payment'] as Map? ?? const {}),
+      ),
+      invoiceId: invoice['id']?.toString() ?? '',
+      remainingAmountIqd: _int(invoice['remaining_amount_iqd']),
+      status: invoice['status']?.toString() ?? 'unpaid',
+      duplicate: json['duplicate'] == true,
+    );
+  }
+
+  final InvoicePayment payment;
+  final String invoiceId;
+  final int remainingAmountIqd;
+  final String status;
+  final bool duplicate;
 }
 
 int _int(Object? value) => value is num ? value.toInt() : int.tryParse(value?.toString() ?? '') ?? 0;

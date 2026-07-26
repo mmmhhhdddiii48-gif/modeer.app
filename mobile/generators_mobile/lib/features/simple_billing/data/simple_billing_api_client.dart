@@ -76,16 +76,59 @@ final class SimpleBillingApiClient {
       _unwrap(
         (await _dio.post<Map<String, dynamic>>(
           '${AppConfig.generatorsBasePath}/owner/monthly-billing/invoices/$invoiceId/payments',
-          data: {
-            'confirm': true,
-            'operation_uuid': operationUuid,
-            'amount_iqd': amountIqd,
-            'payment_method': paymentMethod,
-            'note': note,
+          data: _paymentBody(
+            operationUuid: operationUuid,
+            amountIqd: amountIqd,
+            paymentMethod: paymentMethod,
+            note: note,
+          ),
+        ))
+            .data,
+      );
+
+  Future<Map<String, dynamic>> getCollectorInvoices({String? query}) async => _unwrap(
+        (await _dio.get<Map<String, dynamic>>(
+          '${AppConfig.generatorsBasePath}/collector/collections/invoices',
+          queryParameters: {
+            if (query != null && query.trim().isNotEmpty) 'q': query.trim(),
           },
         ))
             .data,
       );
+
+  Future<Map<String, dynamic>> recordCollectorPayment({
+    required String invoiceId,
+    required String operationUuid,
+    required int amountIqd,
+    required String paymentMethod,
+    String? note,
+  }) async =>
+      _unwrap(
+        (await _dio.post<Map<String, dynamic>>(
+          '${AppConfig.generatorsBasePath}/collector/collections/invoices/$invoiceId/payments',
+          data: _paymentBody(
+            operationUuid: operationUuid,
+            amountIqd: amountIqd,
+            paymentMethod: paymentMethod,
+            note: note,
+          ),
+        ))
+            .data,
+      );
+
+  Map<String, dynamic> _paymentBody({
+    required String operationUuid,
+    required int amountIqd,
+    required String paymentMethod,
+    String? note,
+  }) =>
+      {
+        'confirm': true,
+        'operation_uuid': operationUuid,
+        'amount_iqd': amountIqd,
+        'payment_method': paymentMethod,
+        'note': note,
+      };
 
   Map<String, dynamic> _unwrap(Map<String, dynamic>? envelope) {
     if (envelope == null || envelope['ok'] != true || envelope['data'] is! Map) {

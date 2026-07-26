@@ -14,9 +14,13 @@ const {
 } = require('./generators.simple_billing.service');
 const {
   enrichOwnerMonthlyPeriods,
-  enrichOwnerMonthlyWorkspace,
   recordOwnerInvoicePayment
 } = require('./generators.simple_payments.service');
+const {
+  enrichOwnerMonthlyWorkspaceWithReceivers,
+  listCollectorAssignedInvoices,
+  recordCollectorInvoicePayment
+} = require('./generators.collector_payments.service');
 
 const simpleBillingRouter = express.Router();
 const ownerInvoices = [
@@ -24,10 +28,22 @@ const ownerInvoices = [
   requireGeneratorRole('owner'),
   requireGeneratorPermission('invoices.manage')
 ];
+const collectorInvoices = [
+  requireGeneratorAuth,
+  requireGeneratorRole('collector'),
+  requireGeneratorPermission('collections.own.read'),
+  requireGeneratorPermission('subscribers.assigned.read')
+];
+const collectorPayments = [
+  requireGeneratorAuth,
+  requireGeneratorRole('collector'),
+  requireGeneratorPermission('collections.create'),
+  requireGeneratorPermission('receipts.create')
+];
 
 simpleBillingRouter.get('/health', (_req, res) => {
   ensureGeneratorsSchema();
-  res.json({ ok: true, data: { module: 'generators', version: 'simple-payments', status: 'ready' } });
+  res.json({ ok: true, data: { module: 'generators', version: 'collector-online-payments', status: 'ready' } });
 });
 
 simpleBillingRouter.get('/owner/foundation', ...ownerInvoices, (req, res) => {
@@ -36,17 +52,19 @@ simpleBillingRouter.get('/owner/foundation', ...ownerInvoices, (req, res) => {
     data: {
       role: 'owner',
       tenant_id: req.generatorAuth.tenantPublicId,
-      version: 'simple-payments',
-      flow: ['قراءات العداد', 'سعر الأمبير', 'فواتير الشهر', 'تسجيل الدفعة'],
+      version: 'collector-online-payments',
+      flow: ['قراءات العداد', 'سعر الأمبير', 'فواتير الشهر', 'تسجيل الدفعة', 'تحصيل الجابي Online'],
       monthly_invoices_enabled: true,
       invoice_is_debt: true,
       simple_payments_enabled: true,
+      collector_online_payments_enabled: true,
       receipt_enabled: true,
       draft_workflow_enabled: false,
       review_workflow_enabled: false,
       approval_workflow_enabled: false,
       separate_debt_ledger_enabled: false,
-      separate_cash_box_enabled: false
+      separate_cash_box_enabled: false,
+      collector_offline_collection_enabled: false
     }
   });
 });
@@ -60,7 +78,7 @@ simpleBillingRouter.get('/owner/monthly-billing/periods/:periodId', ...ownerInvo
   const workspace = getOwnerMonthlyWorkspace(req.generatorAuth, req.params.periodId, req.query || {});
   res.json({
     ok: true,
-    data: enrichOwnerMonthlyWorkspace(req.generatorAuth, workspace, req.params.periodId)
+    data: enrichOwnerMonthlyWorkspaceWithReceivers(req.generatorAuth, workspace, req.params.periodId)
   });
 }));
 
@@ -98,6 +116,30 @@ simpleBillingRouter.post(
   ...ownerInvoices,
   asyncHandler((req, res) => {
     const data = recordOwnerInvoicePayment(
+      req.generatorAuth,
+      req.params.invoiceId,
+      req.body || {}
+    );
+    res.status(data.duplicate ? 200 : 201).json({ ok: true, data });
+  })
+);
+
+simpleBillingRouter.get(
+  '/collector/collections/invoices',
+  ...collectorInvoices,
+  asyncHandler((req, res) => {
+    res.json({
+      ok: true,
+      data: listCollectorAssignedInvoices(req.generatorAuth, req.query || {})
+    });
+  })
+);
+
+simpleBillingRouter.post(
+  '/collector/collections/invoices/:invoiceId/payments',
+  ...collectorPayments,
+  asyncHandler((req, res) => {
+    const data = recordCollectorInvoicePayment(
       req.generatorAuth,
       req.params.invoiceId,
       req.body || {}

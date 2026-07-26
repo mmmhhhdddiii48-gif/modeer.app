@@ -127,6 +127,7 @@ final class _LoginPageState extends State<LoginPage> {
         session: session,
         domainRepository: widget.domainRepository,
         readingRepository: widget.readingRepository,
+        simpleBillingRepository: widget.simpleBillingRepository,
         online: _online,
         onLogout: _logout,
         onManualSync: widget.onManualSync,
@@ -196,7 +197,9 @@ final class _LoginPageState extends State<LoginPage> {
                 labelText: 'رقم الهاتف أو اسم المستخدم',
                 prefixIcon: Icon(Icons.person_outline),
               ),
-              validator: (value) => value == null || value.trim().isEmpty ? 'أدخل اسم المستخدم أو رقم الهاتف' : null,
+              validator: (value) => value == null || value.trim().isEmpty
+                  ? 'أدخل اسم المستخدم أو رقم الهاتف'
+                  : null,
             ),
             const SizedBox(height: 14),
             TextFormField(
@@ -264,7 +267,7 @@ final class _ConnectionBanner extends StatelessWidget {
           Icon(online ? Icons.cloud_done_outlined : Icons.cloud_off_outlined, size: 19, color: color),
           const SizedBox(width: 8),
           Text(
-            online ? 'متصل — المزامنة متاحة' : 'بدون إنترنت — القراءات تبقى محفوظة محليًا',
+            online ? 'متصل — القراءة والتحصيل متاحان' : 'بدون إنترنت — القراءات تبقى محفوظة محليًا',
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),
         ],
