@@ -66,6 +66,27 @@ final class SimpleBillingApiClient {
     );
   }
 
+  Future<Map<String, dynamic>> recordPayment({
+    required String invoiceId,
+    required String operationUuid,
+    required int amountIqd,
+    required String paymentMethod,
+    String? note,
+  }) async =>
+      _unwrap(
+        (await _dio.post<Map<String, dynamic>>(
+          '${AppConfig.generatorsBasePath}/owner/monthly-billing/invoices/$invoiceId/payments',
+          data: {
+            'confirm': true,
+            'operation_uuid': operationUuid,
+            'amount_iqd': amountIqd,
+            'payment_method': paymentMethod,
+            'note': note,
+          },
+        ))
+            .data,
+      );
+
   Map<String, dynamic> _unwrap(Map<String, dynamic>? envelope) {
     if (envelope == null || envelope['ok'] != true || envelope['data'] is! Map) {
       throw StateError('استجابة غير صالحة من السيرفر');

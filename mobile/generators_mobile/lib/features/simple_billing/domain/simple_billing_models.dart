@@ -8,6 +8,8 @@ final class MonthlyPeriod {
     required this.priceCount,
     required this.invoiceCount,
     required this.totalIqd,
+    required this.paidIqd,
+    required this.remainingIqd,
   });
 
   factory MonthlyPeriod.fromJson(Map<String, dynamic> json) => MonthlyPeriod(
@@ -19,6 +21,8 @@ final class MonthlyPeriod {
         priceCount: _int(json['price_count']),
         invoiceCount: _int(json['invoice_count']),
         totalIqd: _int(json['total_iqd']),
+        paidIqd: _int(json['paid_iqd']),
+        remainingIqd: _int(json['remaining_iqd'] ?? json['total_iqd']),
       );
 
   final String id;
@@ -29,6 +33,8 @@ final class MonthlyPeriod {
   final int priceCount;
   final int invoiceCount;
   final int totalIqd;
+  final int paidIqd;
+  final int remainingIqd;
 
   bool get isLocked => status == 'locked';
 }
@@ -69,10 +75,40 @@ final class MonthlyGeneratorPrice {
   bool get hasPrice => pricePerAmpIqd != null;
 }
 
+final class InvoicePayment {
+  const InvoicePayment({
+    required this.id,
+    required this.receiptNumber,
+    required this.amountIqd,
+    required this.paymentMethod,
+    required this.createdAt,
+    this.note,
+  });
+
+  factory InvoicePayment.fromJson(Map<String, dynamic> json) => InvoicePayment(
+        id: json['id']?.toString() ?? '',
+        receiptNumber: json['receipt_number']?.toString() ?? '',
+        amountIqd: _int(json['amount_iqd']),
+        paymentMethod: json['payment_method']?.toString() ?? 'cash',
+        note: json['note']?.toString(),
+        createdAt: json['created_at']?.toString() ?? '',
+      );
+
+  final String id;
+  final String receiptNumber;
+  final int amountIqd;
+  final String paymentMethod;
+  final String? note;
+  final String createdAt;
+
+  String get methodLabel => paymentMethod == 'transfer' ? 'تحويل' : 'نقد';
+}
+
 final class MonthlyInvoice {
   const MonthlyInvoice({
     required this.id,
     required this.invoiceNumber,
+    required this.status,
     required this.subscriberName,
     required this.accountNumber,
     required this.generatorName,
@@ -80,13 +116,18 @@ final class MonthlyInvoice {
     required this.pricePerAmpIqd,
     required this.fixedFeeIqd,
     required this.amountIqd,
+    required this.paidAmountIqd,
+    required this.remainingAmountIqd,
     required this.consumption,
+    required this.payments,
     this.meterNumber,
+    this.lastPaymentAt,
   });
 
   factory MonthlyInvoice.fromJson(Map<String, dynamic> json) => MonthlyInvoice(
         id: json['id']?.toString() ?? '',
         invoiceNumber: json['invoice_number']?.toString() ?? '',
+        status: json['status']?.toString() ?? 'unpaid',
         subscriberName: json['subscriber_name']?.toString() ?? '',
         accountNumber: json['account_number']?.toString() ?? '',
         meterNumber: json['meter_number']?.toString(),
@@ -95,11 +136,19 @@ final class MonthlyInvoice {
         pricePerAmpIqd: _int(json['price_per_amp_iqd']),
         fixedFeeIqd: _int(json['fixed_fee_iqd']),
         amountIqd: _int(json['amount_iqd']),
+        paidAmountIqd: _int(json['paid_amount_iqd']),
+        remainingAmountIqd: _int(json['remaining_amount_iqd'] ?? json['amount_iqd']),
         consumption: _double(json['consumption']),
+        lastPaymentAt: json['last_payment_at']?.toString(),
+        payments: (json['payments'] as List? ?? const [])
+            .whereType<Map>()
+            .map((item) => InvoicePayment.fromJson(Map<String, dynamic>.from(item)))
+            .toList(growable: false),
       );
 
   final String id;
   final String invoiceNumber;
+  final String status;
   final String subscriberName;
   final String accountNumber;
   final String? meterNumber;
@@ -108,7 +157,15 @@ final class MonthlyInvoice {
   final int pricePerAmpIqd;
   final int fixedFeeIqd;
   final int amountIqd;
+  final int paidAmountIqd;
+  final int remainingAmountIqd;
   final double consumption;
+  final String? lastPaymentAt;
+  final List<InvoicePayment> payments;
+
+  bool get isPaid => status == 'paid' || remainingAmountIqd <= 0;
+  bool get isPartial => status == 'partial';
+  String get statusLabel => isPaid ? 'مسددة' : isPartial ? 'جزئي' : 'غير مسددة';
 }
 
 final class MonthlySummary {
@@ -119,6 +176,11 @@ final class MonthlySummary {
     required this.missingPriceCount,
     required this.invoiceCount,
     required this.totalIqd,
+    required this.paidIqd,
+    required this.remainingIqd,
+    required this.unpaidCount,
+    required this.partialCount,
+    required this.paidCount,
     required this.canCreateInvoices,
   });
 
@@ -129,6 +191,11 @@ final class MonthlySummary {
         missingPriceCount: _int(json['missing_price_count']),
         invoiceCount: _int(json['invoice_count']),
         totalIqd: _int(json['total_iqd']),
+        paidIqd: _int(json['paid_iqd']),
+        remainingIqd: _int(json['remaining_iqd'] ?? json['total_iqd']),
+        unpaidCount: _int(json['unpaid_count']),
+        partialCount: _int(json['partial_count']),
+        paidCount: _int(json['paid_count']),
         canCreateInvoices: json['can_create_invoices'] == true,
       );
 
@@ -138,6 +205,11 @@ final class MonthlySummary {
   final int missingPriceCount;
   final int invoiceCount;
   final int totalIqd;
+  final int paidIqd;
+  final int remainingIqd;
+  final int unpaidCount;
+  final int partialCount;
+  final int paidCount;
   final bool canCreateInvoices;
 }
 

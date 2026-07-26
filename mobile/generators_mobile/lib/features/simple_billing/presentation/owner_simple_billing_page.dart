@@ -115,7 +115,7 @@ final class _OwnerSimpleBillingPageState extends State<OwnerSimpleBillingPage> {
         title: const Text('إنشاء فواتير الشهر'),
         content: Text(
           'سيتم إنشاء ${workspace.summary.readingCount} فاتورة مباشرة. '
-          'كل فاتورة ستظهر كدين غير مسدد إلى أن نفعل التسديد لاحقًا.',
+          'بعدها يمكنك تسجيل الدفعات من نفس بطاقة الفاتورة.',
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('رجوع')),
@@ -128,6 +128,34 @@ final class _OwnerSimpleBillingPageState extends State<OwnerSimpleBillingPage> {
     try {
       await widget.repository.createInvoices(selected.id);
       _show('تم إنشاء فواتير الشهر.');
+      await _loadWorkspace();
+      await _loadPeriods();
+    } on DioException catch (error) {
+      _show(_apiMessage(error));
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  Future<void> _recordPayment(MonthlyInvoice invoice) async {
+    if (invoice.isPaid) {
+      _show('هذه الفاتورة مسددة بالكامل.');
+      return;
+    }
+    final input = await showDialog<_PaymentInput>(
+      context: context,
+      builder: (_) => _PaymentDialog(invoice: invoice),
+    );
+    if (input == null || !mounted) return;
+    setState(() => _working = true);
+    try {
+      final payment = await widget.repository.recordPayment(
+        invoiceId: invoice.id,
+        amountIqd: input.amount,
+        paymentMethod: input.method,
+        note: input.note,
+      );
+      _show('تم تسجيل الدفعة. رقم الوصل: ${payment.receiptNumber}');
       await _loadWorkspace();
       await _loadPeriods();
     } on DioException catch (error) {
@@ -158,7 +186,11 @@ final class _OwnerSimpleBillingPageState extends State<OwnerSimpleBillingPage> {
       appBar: AppBar(
         title: const Text('فواتير الشهر'),
         actions: [
-          IconButton(onPressed: _working ? null : _loadPeriods, icon: const Icon(Icons.refresh)),
+          IconButton(
+            tooltip: 'تحديث',
+            onPressed: _working ? null : _loadPeriods,
+            icon: const Icon(Icons.refresh),
+          ),
         ],
       ),
       body: _loading
@@ -241,45 +273,108 @@ final class _OwnerSimpleBillingPageState extends State<OwnerSimpleBillingPage> {
           label: Text(summary.invoiceCount > 0 ? 'الفواتير منشأة' : 'إنشاء فواتير الشهر'),
         ),
         const SizedBox(height: 18),
-        Text('الفواتير غير المسددة', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
+        Text('فواتير المشتركين', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
         const SizedBox(height: 8),
         if (workspace.invoices.isEmpty)
           const _EmptyCard(text: 'لم تُنشأ فواتير هذا الشهر بعد.')
         else
           ...workspace.invoices.map(
             (invoice) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(invoice.subscriberName, style: const TextStyle(fontWeight: FontWeight.w900)),
-                          ),
-                          const Chip(label: Text('غير مسددة')),
-                        ],
-                      ),
-                      Text('${invoice.invoiceNumber} • حساب ${invoice.accountNumber}'),
-                      Text('${invoice.generatorName} • ${invoice.contractedAmperes} أمبير'),
-                      const Divider(),
-                      Text(
-                        '${invoice.contractedAmperes} × ${_money(invoice.pricePerAmpIqd)}'
-                        '${invoice.fixedFeeIqd > 0 ? ' + ${_money(invoice.fixedFeeIqd)}' : ''}'
-                        ' = ${_money(invoice.amountIqd)} د.ع',
-                        style: const TextStyle(fontWeight: FontWeight.w800),
-                      ),
-                      Text('الدين الحالي: ${_money(invoice.amountIqd)} د.ع'),
-                    ],
-                  ),
-                ),
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _InvoiceCard(
+                invoice: invoice,
+                working: _working,
+                onPayment: () => _recordPayment(invoice),
               ),
             ),
           ),
       ],
+    );
+  }
+}
+
+final class _InvoiceCard extends StatelessWidget {
+  const _InvoiceCard({
+    required this.invoice,
+    required this.working,
+    required this.onPayment,
+  });
+
+  final MonthlyInvoice invoice;
+  final bool working;
+  final VoidCallback onPayment;
+
+  @override
+  Widget build(BuildContext context) {
+    final statusColor = invoice.isPaid
+        ? AppTheme.teal
+        : invoice.isPartial
+            ? AppTheme.orange
+            : Colors.white70;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(invoice.subscriberName, style: const TextStyle(fontWeight: FontWeight.w900)),
+                ),
+                Chip(
+                  label: Text(invoice.statusLabel),
+                  side: BorderSide(color: statusColor),
+                ),
+              ],
+            ),
+            Text('${invoice.invoiceNumber} • حساب ${invoice.accountNumber}'),
+            Text('${invoice.generatorName} • ${invoice.contractedAmperes} أمبير'),
+            const Divider(),
+            Text(
+              '${invoice.contractedAmperes} × ${_money(invoice.pricePerAmpIqd)}'
+              '${invoice.fixedFeeIqd > 0 ? ' + ${_money(invoice.fixedFeeIqd)}' : ''}'
+              ' = ${_money(invoice.amountIqd)} د.ع',
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 14,
+              runSpacing: 8,
+              children: [
+                Text('الإجمالي: ${_money(invoice.amountIqd)}'),
+                Text('المدفوع: ${_money(invoice.paidAmountIqd)}'),
+                Text(
+                  'المتبقي: ${_money(invoice.remainingAmountIqd)}',
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: working || invoice.isPaid ? null : onPayment,
+                icon: const Icon(Icons.payments_outlined),
+                label: Text(invoice.isPaid ? 'الفاتورة مسددة' : 'تسجيل دفعة'),
+              ),
+            ),
+            if (invoice.payments.isNotEmpty) ...[
+              const Divider(height: 24),
+              const Text('الدفعات', style: TextStyle(fontWeight: FontWeight.w900)),
+              const SizedBox(height: 6),
+              ...invoice.payments.map(
+                (payment) => Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    '${payment.receiptNumber} • ${_money(payment.amountIqd)} د.ع • ${payment.methodLabel}',
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }
@@ -352,6 +447,109 @@ final class _PriceDialogState extends State<_PriceDialog> {
   }
 }
 
+final class _PaymentInput {
+  const _PaymentInput({
+    required this.amount,
+    required this.method,
+    this.note,
+  });
+
+  final int amount;
+  final String method;
+  final String? note;
+}
+
+final class _PaymentDialog extends StatefulWidget {
+  const _PaymentDialog({required this.invoice});
+  final MonthlyInvoice invoice;
+
+  @override
+  State<_PaymentDialog> createState() => _PaymentDialogState();
+}
+
+final class _PaymentDialogState extends State<_PaymentDialog> {
+  late final TextEditingController _amount;
+  final TextEditingController _note = TextEditingController();
+  String _method = 'cash';
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _amount = TextEditingController(text: widget.invoice.remainingAmountIqd.toString());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('تسجيل دفعة'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(widget.invoice.subscriberName, style: const TextStyle(fontWeight: FontWeight.w900)),
+            Text('المتبقي: ${_money(widget.invoice.remainingAmountIqd)} د.ع'),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _amount,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'مبلغ الدفعة',
+                errorText: _error,
+              ),
+            ),
+            const SizedBox(height: 10),
+            DropdownButtonFormField<String>(
+              value: _method,
+              decoration: const InputDecoration(labelText: 'طريقة الدفع'),
+              items: const [
+                DropdownMenuItem(value: 'cash', child: Text('نقد')),
+                DropdownMenuItem(value: 'transfer', child: Text('تحويل')),
+              ],
+              onChanged: (value) => setState(() => _method = value ?? 'cash'),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _note,
+              maxLength: 250,
+              decoration: const InputDecoration(labelText: 'ملاحظة اختيارية'),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+        ElevatedButton(
+          onPressed: () {
+            final amount = int.tryParse(_amount.text.trim());
+            if (amount == null || amount <= 0 || amount > widget.invoice.remainingAmountIqd) {
+              setState(() => _error = 'أدخل مبلغًا من 1 إلى ${_money(widget.invoice.remainingAmountIqd)}');
+              return;
+            }
+            Navigator.pop(
+              context,
+              _PaymentInput(
+                amount: amount,
+                method: _method,
+                note: _note.text.trim().isEmpty ? null : _note.text.trim(),
+              ),
+            );
+          },
+          child: const Text('حفظ الدفعة'),
+        ),
+      ],
+    );
+  }
+
+  @override
+  void dispose() {
+    _amount.dispose();
+    _note.dispose();
+    super.dispose();
+  }
+}
+
 final class _SimpleFlowCard extends StatelessWidget {
   const _SimpleFlowCard({required this.online});
   final bool online;
@@ -367,8 +565,8 @@ final class _SimpleFlowCard extends StatelessWidget {
       ),
       child: Text(
         '${online ? 'متصل' : 'غير متصل'}\n'
-        'الطريقة واضحة: اقفل القراءات ← حدد سعر الأمبير ← أنشئ فواتير الشهر.\n'
-        'الفاتورة غير المسددة هي الدين، ولا توجد مسودات أو مراجعات أو دفتر ذمم منفصل.',
+        'الطريقة واضحة: اقفل القراءات ← حدد السعر ← أنشئ الفواتير ← سجل الدفعة.\n'
+        'الإجمالي والمدفوع والمتبقي والدفعات كلها تظهر داخل نفس بطاقة الفاتورة.',
       ),
     );
   }
@@ -387,10 +585,12 @@ final class _SummaryCard extends StatelessWidget {
           spacing: 18,
           runSpacing: 10,
           children: [
-            Text('القراءات: ${summary.readingCount}'),
-            Text('الأسعار الناقصة: ${summary.missingPriceCount}'),
             Text('الفواتير: ${summary.invoiceCount}'),
-            Text('غير المسدد: ${_money(summary.totalIqd)} د.ع'),
+            Text('الإجمالي: ${_money(summary.totalIqd)}'),
+            Text('المدفوع: ${_money(summary.paidIqd)}'),
+            Text('المتبقي: ${_money(summary.remainingIqd)}'),
+            Text('جزئي: ${summary.partialCount}'),
+            Text('مسدد: ${summary.paidCount}'),
           ],
         ),
       ),

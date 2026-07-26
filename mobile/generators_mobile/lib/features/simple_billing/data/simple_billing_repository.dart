@@ -1,3 +1,5 @@
+import 'package:uuid/uuid.dart';
+
 import '../domain/simple_billing_models.dart';
 import 'simple_billing_api_client.dart';
 
@@ -31,4 +33,22 @@ final class SimpleBillingRepository {
       );
 
   Future<void> createInvoices(String periodId) => _api.createInvoices(periodId);
+
+  Future<InvoicePayment> recordPayment({
+    required String invoiceId,
+    required int amountIqd,
+    required String paymentMethod,
+    String? note,
+  }) async {
+    final data = await _api.recordPayment(
+      invoiceId: invoiceId,
+      operationUuid: const Uuid().v4(),
+      amountIqd: amountIqd,
+      paymentMethod: paymentMethod,
+      note: note,
+    );
+    return InvoicePayment.fromJson(
+      Map<String, dynamic>.from(data['payment'] as Map? ?? const {}),
+    );
+  }
 }

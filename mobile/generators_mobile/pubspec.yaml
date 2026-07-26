@@ -1,7 +1,7 @@
 name: nukhba_generators_mobile
-description: النخبة لإدارة المولدات والجباية Mobile - Simple clear monthly invoices.
+description: النخبة لإدارة المولدات والجباية Mobile - Simple monthly invoices and payments.
 publish_to: none
-version: 0.5.0+5
+version: 0.6.0+6
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
