@@ -1,0 +1,137 @@
+'summary'] as Map? ?? const {})),
+       );
+ 
+   final MonthlyPeriod period;
+   final List<MonthlyGeneratorPrice> generators;
+   final List<MonthlyInvoice> invoices;
++  final List<PendingBillingSubscriber> pendingSubscribers;
+   final MonthlySummary summary;
++
++  MonthlyWorkspace applyPayment(OwnerPaymentResult result) {
++    final index = invoices.indexWhere((item) => item.id == result.invoiceId);
++    if (index < 0) return this;
++    final before = invoices[index];
++    final after = before.applyPayment(result);
++    final updatedInvoices = invoices.toList(growable: true)..[index] = after;
++    return MonthlyWorkspace(
++      period: period,
++      generators: generators,
++      invoices: List.unmodifiable(updatedInvoices),
++      pendingSubscribers: pendingSubscribers,
++      summary: summary.applyPayment(before: before, after: after),
++    );
++  }
++}
++
++final class OwnerPaymentResult {
++  const OwnerPaymentResult({
++    required this.payment,
++    required this.invoiceId,
++    required this.paidAmountIqd,
++    required this.remainingAmountIqd,
++    required this.status,
++    required this.duplicate,
++    this.lastPaymentAt,
++  });
++
++  factory OwnerPaymentResult.fromJson(Map<String, dynamic> json) {
++    final invoice = Map<String, dynamic>.from(json['invoice'] as Map? ?? const {});
++    return OwnerPaymentResult(
++      payment: InvoicePayment.fromJson(
++        Map<String, dynamic>.from(json['payment'] as Map? ?? const {}),
++      ),
++      invoiceId: invoice['id']?.toString() ?? '',
++      paidAmountIqd: _int(invoice['paid_amount_iqd']),
++      remainingAmountIqd: _int(invoice['remaining_amount_iqd']),
++      status: invoice['status']?.toString() ?? 'unpaid',
++      lastPaymentAt: invoice['last_payment_at']?.toString(),
++      duplicate: json['duplicate'] == true,
++    );
++  }
++
++  final InvoicePayment payment;
++  final String invoiceId;
++  final int paidAmountIqd;
++  final int remainingAmountIqd;
++  final String status;
++  final String? lastPaymentAt;
++  final bool duplicate;
+ }
+ 
+ final class CollectorCollectionsSummary {
+diff --git a/mobile/generators_mobile/lib/features/simple_billing/presentation/owner_simple_billing_page.dart b/mobile/generators_mobile/lib/features/simple_billing/presentation/owner_simple_billing_page.dart
+index 6c49758..07996d0 100644
+--- a/mobile/generators_mobile/lib/features/simple_billing/presentation/owner_simple_billing_page.dart
++++ b/mobile/generators_mobile/lib/features/simple_billing/presentation/owner_simple_billing_page.dart
+@@ -149,15 +149,18 @@ final class _OwnerSimpleBillingPageState extends State<OwnerSimpleBillingPage> {
+     if (input == null || !mounted) return;
+     setState(() => _working = true);
+     try {
+-      final payment = await widget.repository.recordPayment(
++      final result = await widget.repository.recordPayment(
+         invoiceId: invoice.id,
+         amountIqd: input.amount,
+         paymentMethod: input.method,
+         note: input.note,
+       );
+-      _show('تم تسجيل الدفعة. رقم الوصل: ${payment.receiptNumber}');
+-      await _loadWorkspace();
+-      await _loadPeriods();
++      if (!mounted) return;
++      setState(() => _workspace = _workspace?.applyPayment(result));
++      _show(
++        'تم تسجيل الدفعة. رقم الوصل: ${result.payment.receiptNumber} — '
++        'المتبقي: ${_money(result.remainingAmountIqd)} د.ع',
++      );
+     } on DioException catch (error) {
+       _show(_apiMessage(error));
+     } finally {
+@@ -273,6 +276,20 @@ final class _OwnerSimpleBillingPageState extends State<OwnerSimpleBillingPage> {
+           label: Text(summary.invoiceCount > 0 ? 'الفواتير منشأة' : 'إنشاء فواتير الشهر'),
+         ),
+         const SizedBox(height: 18),
++        if (workspace.pendingSubscribers.isNotEmpty) ...[
++          Text(
++            'مشتركون بانتظار الفاتورة',
++            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
++          ),
++          const SizedBox(height: 8),
++          ...workspace.pendingSubscribers.map(
++            (subscriber) => Padding(
++              padding: const EdgeInsets.only(bottom: 8),
++              child: _PendingSubscriberCard(subscriber: subscriber),
++            ),
++          ),
++          const SizedBox(height: 10),
++        ],
+         Text('فواتير المشتركين', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
+         const SizedBox(height: 8),
+         if (workspace.invoices.isEmpty)
+@@ -293,6 +310,45 @@ final class _OwnerSimpleBillingPageState extends State<OwnerSimpleBillingPage> {
+   }
+ }
+ 
++final class _PendingSubscriberCard extends StatelessWidget {
++  const _PendingSubscriberCard({required this.subscriber});
++
++  final PendingBillingSubscriber subscriber;
++
++  @override
++  Widget build(BuildContext context) {
++    return Card(
++      child: Padding(
++        padding: const EdgeInsets.all(14),
++        child: Column(
++          crossAxisAlignment: CrossAxisAlignment.start,
++          children: [
++            Row(
++              children: [
++                const CircleAvatar(child: Icon(Icons.person_add_alt_1_outlined)),
++                const SizedBox(width: 10),
++                Expanded(
++                  child: Text(
++                    subscriber.fullName,
++                    style: const TextStyle(fontWeight: FontWeight.w900),
++                  ),
++                ),
++
