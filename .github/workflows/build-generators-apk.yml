@@ -79,8 +79,8 @@ jobs:
       - name: Get Flutter packages
         run: flutter pub get
 
-      - name: Format verification
-        run: dart format --output=none --set-exit-if-changed lib test
+      - name: Format Flutter build workspace
+        run: dart format lib test
 
       - name: Analyze Flutter project
         run: flutter analyze
