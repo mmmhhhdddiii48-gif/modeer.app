@@ -1,0 +1,135 @@
++++ b/mobile/generators_mobile/lib/features/domain/presentation/domain_routes_tab.dart
+@@ -73,23 +73,38 @@ final class _RoutesTabState extends State<_RoutesTab> {
+       children: _items
+           .map(
+             (item) => Card(
+-              child: ListTile(
+-                leading: const Icon(Icons.route_outlined, color: AppTheme.teal),
+-                title: Text(item.name),
+-                subtitle: Text(
+-                  '${item.code} • ${item.area ?? 'بدون منطقة'}\n'
+-                  '${item.generator?.name ?? 'غير مربوط بمولدة'} • ${item.subscriberCount} مشترك • ${_statusLabel(item.status)}',
+-                ),
+-                isThreeLine: true,
+-                onTap: () => _edit(item),
+-                trailing: PopupMenuButton<String>(
+-                  onSelected: (value) => value == 'edit' ? _edit(item) : _status(item, value),
+-                  itemBuilder: (_) => const [
+-                    PopupMenuItem(value: 'edit', child: Text('تعديل')),
+-                    PopupMenuItem(value: 'active', child: Text('تفعيل')),
+-                    PopupMenuItem(value: 'inactive', child: Text('إيقاف')),
+-                  ],
+-                ),
++              child: Column(
++                children: [
++                  ListTile(
++                    leading: const Icon(Icons.route_outlined, color: AppTheme.teal),
++                    title: Text(item.name),
++                    subtitle: Text(
++                      '${item.code} • ${item.area ?? 'بدون منطقة'}\n'
++                      '${item.generator?.name ?? 'غير مربوط بمولدة'} • ${item.subscriberCount} مشترك • ${_statusLabel(item.status)}',
++                    ),
++                    isThreeLine: true,
++                    onTap: () => _edit(item),
++                    trailing: PopupMenuButton<String>(
++                      tooltip: 'تغيير الحالة',
++                      onSelected: (value) => _status(item, value),
++                      itemBuilder: (_) => const [
++                        PopupMenuItem(value: 'active', child: Text('تفعيل')),
++                        PopupMenuItem(value: 'inactive', child: Text('إيقاف')),
++                      ],
++                    ),
++                  ),
++                  Padding(
++                    padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 10),
++                    child: Align(
++                      alignment: AlignmentDirectional.centerEnd,
++                      child: OutlinedButton.icon(
++                        onPressed: () => _edit(item),
++                        icon: const Icon(Icons.edit_outlined),
++                        label: const Text('تعديل'),
++                      ),
++                    ),
++                  ),
++                ],
+               ),
+             ),
+           )
+diff --git a/mobile/generators_mobile/lib/features/domain/presentation/domain_subscribers_tab.dart b/mobile/generators_mobile/lib/features/domain/presentation/domain_subscribers_tab.dart
+index b8a996e..3e85cb4 100644
+--- a/mobile/generators_mobile/lib/features/domain/presentation/domain_subscribers_tab.dart
++++ b/mobile/generators_mobile/lib/features/domain/presentation/domain_subscribers_tab.dart
+@@ -104,25 +104,40 @@ final class _SubscribersTabState extends State<_SubscribersTab> {
+       children: _items
+           .map(
+             (item) => Card(
+-              child: ListTile(
+-                leading: const CircleAvatar(child: Icon(Icons.person_outline)),
+-                title: Text(item.fullName),
+-                subtitle: Text(
+-                  '${item.accountNumber} • ${item.phone ?? 'بدون هاتف'}\n'
+-                  '${item.generator.name} • ${item.route?.name ?? 'بدون مسار'} • ${item.contractedAmperes} أمبير\n'
+-                  '${_statusLabel(item.status)}',
+-                ),
+-                isThreeLine: true,
+-                onTap: () => _edit(item),
+-                trailing: PopupMenuButton<String>(
+-                  onSelected: (value) => value == 'edit' ? _edit(item) : _status(item, value),
+-                  itemBuilder: (_) => const [
+-                    PopupMenuItem(value: 'edit', child: Text('تعديل')),
+-                    PopupMenuItem(value: 'active', child: Text('تفعيل')),
+-                    PopupMenuItem(value: 'suspended', child: Text('تعليق')),
+-                    PopupMenuItem(value: 'disconnected', child: Text('قطع')),
+-                  ],
+-                ),
++              child: Column(
++                children: [
++                  ListTile(
++                    leading: const CircleAvatar(child: Icon(Icons.person_outline)),
++                    title: Text(item.fullName),
++                    subtitle: Text(
++                      '${item.accountNumber} • ${item.phone ?? 'بدون هاتف'}\n'
++                      '${item.generator.name} • ${item.route?.name ?? 'بدون مسار'} • ${item.contractedAmperes} أمبير\n'
++                      '${_statusLabel(item.status)} • أضيف: ${formatServerDateTime(item.createdAt)}',
++                    ),
++                    isThreeLine: true,
++                    onTap: () => _edit(item),
++                    trailing: PopupMenuButton<String>(
++                      tooltip: 'تغيير الحالة',
++                      onSelected: (value) => _status(item, value),
++                      itemBuilder: (_) => const [
++                        PopupMenuItem(value: 'active', child: Text('تفعيل')),
++                        PopupMenuItem(value: 'suspended', child: Text('تعليق')),
++                        PopupMenuItem(value: 'disconnected', child: Text('قطع')),
++                      ],
++                    ),
++                  ),
++                  Padding(
++                    padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 10),
++                    child: Align(
++                      alignment: AlignmentDirectional.centerEnd,
++                      child: OutlinedButton.icon(
++                        onPressed: () => _edit(item),
++                        icon: const Icon(Icons.edit_outlined),
++                        label: const Text('تعديل'),
++                      ),
++                    ),
++                  ),
++                ],
+               ),
+             ),
+           )
+diff --git a/mobile/generators_mobile/lib/features/owner/presentation/owner_home_widgets.dart b/mobile/generators_mobile/lib/features/owner/presentation/owner_home_widgets.dart
+index f90b045..7c8f966 100644
+--- a/mobile/generators_mobile/lib/features/owner/presentation/owner_home_widgets.dart
++++ b/mobile/generators_mobile/lib/features/owner/presentation/owner_home_widgets.dart
+@@ -159,9 +159,6 @@ final class _CollectorCard extends StatelessWidget {
+                 PopupMenuButton<String>(
+                   onSelected: (value) {
+                     switch (value) {
+-                      case 'edit':
+-                        onEdit();
+-                        break;
+                       case 'permissions':
+                         onPermissions();
+                         break;

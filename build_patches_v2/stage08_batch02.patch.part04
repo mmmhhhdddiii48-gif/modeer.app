@@ -1,0 +1,101 @@
++void main() {
++  test('server UTC date is parsed and formatted', () {
++    final parsed = parseServerDateTime('2026-07-30 10:15:00');
++    expect(parsed, isNotNull);
++    expect(formatServerDateTime('2026-07-30 10:15:00'), isNot('غير متوفر'));
++  });
++
++  test('past unpaid month is overdue and current month is due', () {
++    final now = DateTime(2026, 7, 30);
++    final past = MonthlyPeriod(
++      id: 'past',
++      periodKey: '2026-06',
++      title: 'حزيران',
++      status: 'locked',
++      readingCount: 1,
++      priceCount: 1,
++      invoiceCount: 1,
++      totalIqd: 100000,
++      paidIqd: 25000,
++      remainingIqd: 75000,
++    );
++    final current = MonthlyPeriod(
++      id: 'current',
++      periodKey: '2026-07',
++      title: 'تموز',
++      status: 'locked',
++      readingCount: 1,
++      priceCount: 1,
++      invoiceCount: 1,
++      totalIqd: 100000,
++      paidIqd: 0,
++      remainingIqd: 100000,
++    );
++    expect(past.dueStateAt(now), BillingDueState.overdue);
++    expect(current.dueStateAt(now), BillingDueState.dueNow);
++  });
++
++  test('payment updates period balance immediately', () {
++    final period = MonthlyPeriod(
++      id: 'p',
++      periodKey: '2026-07',
++      title: 'تموز',
++      status: 'locked',
++      readingCount: 1,
++      priceCount: 1,
++      invoiceCount: 1,
++      totalIqd: 100000,
++      paidIqd: 20000,
++      remainingIqd: 80000,
++    );
++    final updated = period.applyPaymentAmount(30000);
++    expect(updated.paidIqd, 50000);
++    expect(updated.remainingIqd, 50000);
++  });
++}
+diff --git a/tests/generators_stage08_batch02_contract.test.js b/tests/generators_stage08_batch02_contract.test.js
+new file mode 100644
+index 0000000..e3fe997
+--- /dev/null
++++ b/tests/generators_stage08_batch02_contract.test.js
+@@ -0,0 +1,40 @@
++'use strict';
++
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const path = require('node:path');
++
++const root = path.resolve(__dirname, '..');
++const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
++
++const subscribers = read('mobile/generators_mobile/lib/features/domain/presentation/domain_subscribers_tab.dart');
++const generators = read('mobile/generators_mobile/lib/features/domain/presentation/domain_generators_tab.dart');
++const routes = read('mobile/generators_mobile/lib/features/domain/presentation/domain_routes_tab.dart');
++const ownerWidgets = read('mobile/generators_mobile/lib/features/owner/presentation/owner_home_widgets.dart');
++const ownerBilling = read('mobile/generators_mobile/lib/features/simple_billing/presentation/owner_simple_billing_page.dart');
++const collectorBilling = read('mobile/generators_mobile/lib/features/simple_billing/presentation/collector_payments_page.dart');
++const models = read('mobile/generators_mobile/lib/features/simple_billing/domain/simple_billing_models.dart');
++const dateHelper = read('mobile/generators_mobile/lib/core/utils/date_time_format.dart');
++const pubspec = read('mobile/generators_mobile/pubspec.yaml');
++
++assert.match(generators, /OutlinedButton\.icon[\s\S]*label: const Text\('تعديل'\)/);
++assert.match(routes, /OutlinedButton\.icon[\s\S]*label: const Text\('تعديل'\)/);
++assert.match(subscribers, /OutlinedButton\.icon[\s\S]*label: const Text\('تعديل'\)/);
++assert.match(ownerWidgets, /label: const Text\('تعديل البيانات'\)/);
++
++assert.match(subscribers, /formatServerDateTime\(item\.createdAt\)/);
++assert.match(ownerBilling, /تاريخ التسديد: \$\{formatServerDateTime\(payment\.createdAt\)\}/);
++assert.match(collectorBilling, /تاريخ التسديد: \$\{formatServerDateTime\(payment\.createdAt\)\}/);
++assert.match(dateHelper, /parseServerDateTime/);
++
++assert.match(models, /enum BillingDueState \{ settled, dueNow, overdue, upcoming \}/);
++assert.match(models, /BillingDueState dueStateAt\(DateTime now\)/);
++assert.match(ownerBilling, /_PaymentAlertsCard/);
++assert.match(ownerBilling, /تنبيه: توجد مبالغ متأخرة/);
++assert.match(ownerBilling, /تنبيه استحقاق الشهر الحالي/);
++assert.match(ownerBilling, /applyPaymentAmount\(paymentDelta\)/);
++
++assert.match(pubspec, /version: 0\.8\.2\+9/);
++assert.doesNotMatch(ownerBilling, /تاريخ استحقاق ثابت|due_date|موعد استحقاق ثابت/);
++
++console.log('Stage08 Batch02 contract: passed');

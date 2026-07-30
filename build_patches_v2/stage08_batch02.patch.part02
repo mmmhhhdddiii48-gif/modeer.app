@@ -1,0 +1,163 @@
+@@ -179,7 +176,6 @@ final class _CollectorCard extends StatelessWidget {
+                     }
+                   },
+                   itemBuilder: (context) => const [
+-                    PopupMenuItem(value: 'edit', child: Text('تعديل البيانات')),
+                     PopupMenuItem(value: 'permissions', child: Text('الصلاحيات')),
+                     PopupMenuItem(value: 'assignments', child: Text('التخصيصات')),
+                     PopupMenuItem(value: 'password', child: Text('تغيير كلمة المرور')),
+@@ -206,6 +202,15 @@ final class _CollectorCard extends StatelessWidget {
+                 ),
+               ],
+             ),
++            const SizedBox(height: 10),
++            Align(
++              alignment: AlignmentDirectional.centerEnd,
++              child: OutlinedButton.icon(
++                onPressed: onEdit,
++                icon: const Icon(Icons.edit_outlined),
++                label: const Text('تعديل البيانات'),
++              ),
++            ),
+           ],
+         ),
+       ),
+diff --git a/mobile/generators_mobile/lib/features/simple_billing/domain/simple_billing_models.dart b/mobile/generators_mobile/lib/features/simple_billing/domain/simple_billing_models.dart
+index e90f1b6..2779831 100644
+--- a/mobile/generators_mobile/lib/features/simple_billing/domain/simple_billing_models.dart
++++ b/mobile/generators_mobile/lib/features/simple_billing/domain/simple_billing_models.dart
+@@ -1,3 +1,33 @@
++enum BillingDueState { settled, dueNow, overdue, upcoming }
++
++extension BillingDueStateLabel on BillingDueState {
++  String get label => switch (this) {
++        BillingDueState.settled => 'مسدد',
++        BillingDueState.dueNow => 'مستحق الآن',
++        BillingDueState.overdue => 'متأخر',
++        BillingDueState.upcoming => 'غير مستحق بعد',
++      };
++}
++
++String _monthKey(DateTime value) =>
++    '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}';
++
++BillingDueState _dueState({
++  required String? periodKey,
++  required int remainingIqd,
++  required DateTime now,
++}) {
++  if (remainingIqd <= 0) return BillingDueState.settled;
++  final key = periodKey == null || periodKey.length < 7
++      ? null
++      : periodKey.substring(0, 7);
++  if (key == null) return BillingDueState.dueNow;
++  final current = _monthKey(now);
++  if (key.compareTo(current) < 0) return BillingDueState.overdue;
++  if (key == current) return BillingDueState.dueNow;
++  return BillingDueState.upcoming;
++}
++
+ final class MonthlyPeriod {
+   const MonthlyPeriod({
+     required this.id,
+@@ -37,6 +67,28 @@ final class MonthlyPeriod {
+   final int remainingIqd;
+ 
+   bool get isLocked => status == 'locked';
++
++  BillingDueState dueStateAt(DateTime now) => _dueState(
++        periodKey: periodKey,
++        remainingIqd: remainingIqd,
++        now: now,
++      );
++
++  MonthlyPeriod applyPaymentAmount(int amountIqd) {
++    final applied = amountIqd.clamp(0, remainingIqd).toInt();
++    return MonthlyPeriod(
++      id: id,
++      periodKey: periodKey,
++      title: title,
++      status: status,
++      readingCount: readingCount,
++      priceCount: priceCount,
++      invoiceCount: invoiceCount,
++      totalIqd: totalIqd,
++      paidIqd: paidIqd + applied,
++      remainingIqd: remainingIqd - applied,
++    );
++  }
+ }
+ 
+ final class MonthlyGeneratorPrice {
+@@ -197,6 +249,11 @@ final class MonthlyInvoice {
+ 
+   bool get isPaid => status == 'paid' || remainingAmountIqd <= 0;
+   bool get isPartial => status == 'partial';
++  BillingDueState dueStateAt(DateTime now) => _dueState(
++        periodKey: periodKey,
++        remainingIqd: remainingAmountIqd,
++        now: now,
++      );
+   String get statusLabel => isPaid ? 'مسددة' : isPartial ? 'جزئي' : 'غير مسددة';
+ 
+   MonthlyInvoice applyPayment(OwnerPaymentResult result) {
+diff --git a/mobile/generators_mobile/lib/features/simple_billing/presentation/collector_payments_page.dart b/mobile/generators_mobile/lib/features/simple_billing/presentation/collector_payments_page.dart
+index 839b105..52acdb9 100644
+--- a/mobile/generators_mobile/lib/features/simple_billing/presentation/collector_payments_page.dart
++++ b/mobile/generators_mobile/lib/features/simple_billing/presentation/collector_payments_page.dart
+@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
+ import 'package:flutter/material.dart';
+ 
+ import '../../../core/theme/app_theme.dart';
++import '../../../core/utils/date_time_format.dart';
+ import '../data/simple_billing_repository.dart';
+ import '../domain/simple_billing_models.dart';
+ 
+@@ -286,6 +287,11 @@ final class _CollectorInvoiceCard extends StatelessWidget {
+                         '${payment.receiptNumber} • ${_money(payment.amountIqd)} د.ع • ${payment.methodLabel}',
+                         style: const TextStyle(fontWeight: FontWeight.w800),
+                       ),
++                      const SizedBox(height: 3),
++                      Text(
++                        'تاريخ التسديد: ${formatServerDateTime(payment.createdAt)}',
++                        style: const TextStyle(fontSize: 12, color: Colors.white60),
++                      ),
+                     ],
+                   ),
+                 ),
+diff --git a/mobile/generators_mobile/lib/features/simple_billing/presentation/owner_simple_billing_page.dart b/mobile/generators_mobile/lib/features/simple_billing/presentation/owner_simple_billing_page.dart
+index f68c784..2c8f4eb 100644
+--- a/mobile/generators_mobile/lib/features/simple_billing/presentation/owner_simple_billing_page.dart
++++ b/mobile/generators_mobile/lib/features/simple_billing/presentation/owner_simple_billing_page.dart
+@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
+ import 'package:flutter/material.dart';
+ 
+ import '../../../core/theme/app_theme.dart';
++import '../../../core/utils/date_time_format.dart';
+ import '../../domain/data/domain_repository.dart';
+ import '../../readings/data/reading_repository.dart';
+ import '../data/simple_billing_repository.dart';
+@@ -211,7 +212,22 @@ final class _OwnerSimpleBillingPageState extends State<OwnerSimpleBillingPage> {
+         note: input.note,
+       );
+       if (!mounted) return;
+-      setState(() => _workspace = _workspace?.applyPayment(result));
++      final paymentDelta =
++          (result.paidAmountIqd - invoice.paidAmountIqd).clamp(0, input.amount).toInt();
++      setState(() {
++        _workspace = _workspace?.applyPayment(result);
++        final selectedId = _selected?.id;
++        if (selectedId != null && paymentDelta > 0) {
++          _periods = _periods
++              .map(
++                (period) => period.id == selectedId
++                    ? period.applyPaymentAmount(paymentDelta)
++                    : period,
++              )
++              .toList(growable: false);
++          _selected = _periods.where((period) => period.id == selectedId).firstOrNull;
++        }
++      });
+       _show(
+         'تم تسجيل الدفعة. رقم الوصل: ${result.payment.receiptNumber} — '
+         'المتبقي: ${_money(result.remainingAmountIqd)} د.ع',

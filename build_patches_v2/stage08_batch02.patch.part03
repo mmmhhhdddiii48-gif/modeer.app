@@ -1,0 +1,168 @@
+@@ -261,6 +277,10 @@ final class _OwnerSimpleBillingPageState extends State<OwnerSimpleBillingPage> {
+                 children: [
+                   _SimpleFlowCard(online: widget.online),
+                   const SizedBox(height: 12),
++                  if (_periods.isNotEmpty) ...[
++                    _PaymentAlertsCard(periods: _periods, now: DateTime.now()),
++                    const SizedBox(height: 12),
++                  ],
+                   if (_periods.isEmpty)
+                     const _EmptyCard(text: 'لا توجد دورة قراءات بعد.')
+                   else ...[
+@@ -274,7 +294,10 @@ final class _OwnerSimpleBillingPageState extends State<OwnerSimpleBillingPage> {
+                           .map(
+                             (period) => DropdownMenuItem(
+                               value: period,
+-                              child: Text('${period.periodKey} — ${period.isLocked ? 'مقفلة' : 'مفتوحة'}'),
++                              child: Text(
++                                '${period.periodKey} — ${period.isLocked ? 'مقفلة' : 'مفتوحة'}'
++                                '${period.dueStateAt(DateTime.now()) == BillingDueState.overdue ? ' — متأخر' : period.dueStateAt(DateTime.now()) == BillingDueState.dueNow ? ' — مستحق' : ''}',
++                              ),
+                             ),
+                           )
+                           .toList(growable: false),
+@@ -433,9 +456,26 @@ final class _InvoiceCard extends StatelessWidget {
+                 Expanded(
+                   child: Text(invoice.subscriberName, style: const TextStyle(fontWeight: FontWeight.w900)),
+                 ),
+-                Chip(
+-                  label: Text(invoice.statusLabel),
+-                  side: BorderSide(color: statusColor),
++                Flexible(
++                  child: Wrap(
++                    alignment: WrapAlignment.end,
++                    spacing: 6,
++                    children: [
++                    if (invoice.dueStateAt(DateTime.now()) != BillingDueState.settled)
++                      Chip(
++                        label: Text(invoice.dueStateAt(DateTime.now()).label),
++                        side: BorderSide(
++                          color: invoice.dueStateAt(DateTime.now()) == BillingDueState.overdue
++                              ? Colors.redAccent
++                              : AppTheme.orange,
++                        ),
++                      ),
++                      Chip(
++                        label: Text(invoice.statusLabel),
++                        side: BorderSide(color: statusColor),
++                      ),
++                    ],
++                  ),
+                 ),
+               ],
+             ),
+@@ -500,7 +540,8 @@ final class _InvoiceCard extends StatelessWidget {
+                 (payment) => Padding(
+                   padding: const EdgeInsets.only(bottom: 4),
+                   child: Text(
+-                    '${payment.receiptNumber} • ${_money(payment.amountIqd)} د.ع • ${payment.methodLabel}',
++                    '${payment.receiptNumber} • ${_money(payment.amountIqd)} د.ع • ${payment.methodLabel}\n'
++                    'تاريخ التسديد: ${formatServerDateTime(payment.createdAt)}',
+                   ),
+                 ),
+               ),
+@@ -726,6 +767,81 @@ final class _SimpleFlowCard extends StatelessWidget {
+   }
+ }
+ 
++final class _PaymentAlertsCard extends StatelessWidget {
++  const _PaymentAlertsCard({required this.periods, required this.now});
++
++  final List<MonthlyPeriod> periods;
++  final DateTime now;
++
++  @override
++  Widget build(BuildContext context) {
++    final overdue = periods
++        .where((period) => period.dueStateAt(now) == BillingDueState.overdue)
++        .toList(growable: false);
++    final dueNow = periods
++        .where((period) => period.dueStateAt(now) == BillingDueState.dueNow)
++        .toList(growable: false);
++    final overdueAmount = overdue.fold<int>(
++      0,
++      (total, period) => total + period.remainingIqd,
++    );
++    final dueAmount = dueNow.fold<int>(
++      0,
++      (total, period) => total + period.remainingIqd,
++    );
++    final hasOverdue = overdueAmount > 0;
++    final hasDue = dueAmount > 0;
++    final color = hasOverdue
++        ? Colors.redAccent
++        : hasDue
++            ? AppTheme.orange
++            : AppTheme.teal;
++    final title = hasOverdue
++        ? 'تنبيه: توجد مبالغ متأخرة'
++        : hasDue
++            ? 'تنبيه استحقاق الشهر الحالي'
++            : 'لا توجد استحقاقات غير مسددة';
++    final details = hasOverdue
++        ? '${overdue.length} شهر متأخر • ${_money(overdueAmount)} د.ع'
++            '${hasDue ? '\nالشهر الحالي: ${_money(dueAmount)} د.ع' : ''}'
++        : hasDue
++            ? '${dueNow.length} شهر مستحق • ${_money(dueAmount)} د.ع'
++            : 'جميع الأشهر المسجلة مسددة حتى الآن.';
++    return Container(
++      padding: const EdgeInsets.all(14),
++      decoration: BoxDecoration(
++        color: color.withValues(alpha: 0.12),
++        borderRadius: BorderRadius.circular(16),
++        border: Border.all(color: color.withValues(alpha: 0.60)),
++      ),
++      child: Row(
++        crossAxisAlignment: CrossAxisAlignment.start,
++        children: [
++          Icon(
++            hasOverdue
++                ? Icons.warning_amber_rounded
++                : hasDue
++                    ? Icons.notifications_active_outlined
++                    : Icons.check_circle_outline,
++            color: color,
++          ),
++          const SizedBox(width: 10),
++          Expanded(
++            child: Column(
++              crossAxisAlignment: CrossAxisAlignment.start,
++              children: [
++                Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
++                const SizedBox(height: 4),
++                Text(details),
++              ],
++            ),
++          ),
++        ],
++      ),
++    );
++  }
++}
++
+ final class _SummaryCard extends StatelessWidget {
+   const _SummaryCard({required this.summary});
+   final MonthlySummary summary;
+diff --git a/mobile/generators_mobile/pubspec.yaml b/mobile/generators_mobile/pubspec.yaml
+index 63caf92..08c7be6 100644
+--- a/mobile/generators_mobile/pubspec.yaml
++++ b/mobile/generators_mobile/pubspec.yaml
+@@ -1,7 +1,7 @@
+ name: nukhba_generators_mobile
+ description: النخبة لإدارة المولدات والجباية Mobile - Collector online payments.
+ publish_to: none
+-version: 0.7.0+7
++version: 0.8.2+9
+ 
+ environment:
+   sdk: '>=3.3.0 <4.0.0'
+diff --git a/mobile/generators_mobile/test/stage08_batch02_dates_due_test.dart b/mobile/generators_mobile/test/stage08_batch02_dates_due_test.dart
+new file mode 100644
+index 0000000..c484d7d
+--- /dev/null
++++ b/mobile/generators_mobile/test/stage08_batch02_dates_due_test.dart
+@@ -0,0 +1,59 @@
++import 'package:flutter_test/flutter_test.dart';
++import 'package:nukhba_generators_mobile/core/utils/date_time_format.dart';
++import 'package:nukhba_generators_mobile/features/simple_billing/domain/simple_billing_models.dart';
++

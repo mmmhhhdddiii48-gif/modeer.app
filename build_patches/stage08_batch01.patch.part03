@@ -1,0 +1,120 @@
+     ],
++            ),
++            const SizedBox(height: 8),
++            Text(
++              'حساب ${subscriber.accountNumber} • ${subscriber.generatorName}\n'
++              '${subscriber.routeName ?? 'بدون مسار'} • ${subscriber.contractedAmperes} أمبير',
++            ),
++            const SizedBox(height: 8),
++            Chip(label: Text(subscriber.billingStateLabel)),
++          ],
++        ),
++      ),
++    );
++  }
++}
++
+ final class _InvoiceCard extends StatelessWidget {
+   const _InvoiceCard({
+     required this.invoice,
+@@ -344,13 +400,35 @@ final class _InvoiceCard extends StatelessWidget {
+               children: [
+                 Text('الإجمالي: ${_money(invoice.amountIqd)}'),
+                 Text('المدفوع: ${_money(invoice.paidAmountIqd)}'),
+-                Text(
+-                  'المتبقي: ${_money(invoice.remainingAmountIqd)}',
+-                  style: const TextStyle(fontWeight: FontWeight.w900),
+-                ),
+               ],
+             ),
+             const SizedBox(height: 10),
++            Container(
++              width: double.infinity,
++              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
++              decoration: BoxDecoration(
++                color: invoice.isPaid
++                    ? AppTheme.teal.withValues(alpha: 0.10)
++                    : AppTheme.orange.withValues(alpha: 0.12),
++                borderRadius: BorderRadius.circular(14),
++                border: Border.all(
++                  color: invoice.isPaid
++                      ? AppTheme.teal.withValues(alpha: 0.45)
++                      : AppTheme.orange.withValues(alpha: 0.55),
++                ),
++              ),
++              child: Column(
++                crossAxisAlignment: CrossAxisAlignment.start,
++                children: [
++                  Text(invoice.isPaid ? 'المبلغ المستحق' : 'المبلغ المستحق الآن'),
++                  Text(
++                    '${_money(invoice.remainingAmountIqd)} د.ع',
++                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
++                  ),
++                ],
++              ),
++            ),
++            const SizedBox(height: 10),
+             SizedBox(
+               width: double.infinity,
+               child: ElevatedButton.icon(
+@@ -489,13 +567,34 @@ final class _PaymentDialogState extends State<_PaymentDialog> {
+           crossAxisAlignment: CrossAxisAlignment.stretch,
+           children: [
+             Text(widget.invoice.subscriberName, style: const TextStyle(fontWeight: FontWeight.w900)),
+-            Text('المتبقي: ${_money(widget.invoice.remainingAmountIqd)} د.ع'),
++            const SizedBox(height: 10),
++            Container(
++              padding: const EdgeInsets.all(12),
++              decoration: BoxDecoration(
++                color: AppTheme.orange.withValues(alpha: 0.12),
++                borderRadius: BorderRadius.circular(12),
++                border: Border.all(color: AppTheme.orange.withValues(alpha: 0.55)),
++              ),
++              child: Column(
++                crossAxisAlignment: CrossAxisAlignment.start,
++                children: [
++                  const Text('المبلغ المستحق حاليًا'),
++                  Text(
++                    '${_money(widget.invoice.remainingAmountIqd)} د.ع',
++                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
++                  ),
++                ],
++              ),
++            ),
+             const SizedBox(height: 14),
+             TextField(
+               controller: _amount,
++              autofocus: true,
+               keyboardType: TextInputType.number,
+               decoration: InputDecoration(
+-                labelText: 'مبلغ الدفعة',
++                labelText: 'مبلغ الدفعة الآن',
++                helperText: 'سيُخصم فورًا من المبلغ المتبقي',
++                suffixText: 'د.ع',
+                 errorText: _error,
+               ),
+             ),
+diff --git a/src/modules/generators/generators.simple_payments.service.js b/src/modules/generators/generators.simple_payments.service.js
+index 61074df..b932862 100644
+--- a/src/modules/generators/generators.simple_payments.service.js
++++ b/src/modules/generators/generators.simple_payments.service.js
+@@ -101,6 +101,22 @@ function enrichOwnerMonthlyWorkspace(auth, workspace, periodPublicId) {
+     list.push(serializePayment(row));
+     paymentsByInvoice.set(row.invoice_public_id, list);
+   }
++  const pendingSubscriberRows = db.prepare(`
++    SELECT s.public_id AS id, s.account_number, s.full_name, s.phone, s.area,
++      s.meter_number, s.contracted_amperes, s.created_at,
++      g.name AS generator_name, r.name AS route_name,
++      EXISTS (
++        SELECT 1 FROM generator_meter_readings mr
++        WHERE mr.tenant_id = s.tenant_id AND mr.period_id = ? AND mr.subscriber_id = s.id
++      ) AS has_reading
++    FROM generator_subscribers s
++    JOIN generator_units g ON g.id = s.generator_unit_id AND g.tenant_id = s.tenant_id
++    LEFT JOIN generator_routes r ON r.id = s.route_id AND r.tenant_id = s.tenant_id
++    LEFT JOIN generator_monthly_invoices i
++      ON i.tenant_id = s.tenant_id AND i.period_id = ? AND i.subscriber_id = s.id
++    WHERE s.tenant_id = ? AND s.status = 'active' AND i.id IS NULL
++    ORDER BY s.full_name COLLATE NOCASE, s.id
++  `).all(period.id, peri
