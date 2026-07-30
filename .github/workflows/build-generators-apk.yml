@@ -18,6 +18,7 @@ on:
       - 'build_patches_v4/**'
       - 'build_patches_v5/**'
       - 'build_patches_v6/**'
+      - 'build_patches_v7/**'
       - '.github/workflows/build-generators-apk.yml'
 
 permissions:
@@ -81,6 +82,15 @@ jobs:
           echo '9a5500e8e3cfa36d34a1736765ad44dcaad8cc770dacb6f741e070140128f4b5  /tmp/stage08_batch04.patch' | sha256sum -c -
           git apply --check /tmp/stage08_batch04.patch
           git apply /tmp/stage08_batch04.patch
+          git diff --check
+
+      - name: Apply Stage08 Batch04 analyze correction
+        working-directory: .
+        shell: bash
+        run: |
+          echo '89e95bf0023aa42b9dac521af6173b821f0523952c16285ece26efe899668878  build_patches_v7/stage08_batch04_analyze_fix.patch' | sha256sum -c -
+          git apply --check build_patches_v7/stage08_batch04_analyze_fix.patch
+          git apply build_patches_v7/stage08_batch04_analyze_fix.patch
           git diff --check
 
       - name: Run Batch01 to Batch04 source contracts
