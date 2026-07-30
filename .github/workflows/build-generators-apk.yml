@@ -17,6 +17,7 @@ on:
       - 'build_patches_v3/**'
       - 'build_patches_v4/**'
       - 'build_patches_v5/**'
+      - 'build_patches_v6/**'
       - '.github/workflows/build-generators-apk.yml'
 
 permissions:
@@ -68,7 +69,14 @@ jobs:
         working-directory: .
         shell: bash
         run: |
-          cat build_patches_v5/stage08_batch04.patch.gz.b64.part* | base64 --decode --ignore-garbage > /tmp/stage08_batch04.patch.gz
+          cat build_patches_v6/stage08_batch04.patch.gz.hex.part* > /tmp/stage08_batch04.patch.gz.hex
+          python - <<'PY'
+          from pathlib import Path
+          source = Path('/tmp/stage08_batch04.patch.gz.hex')
+          target = Path('/tmp/stage08_batch04.patch.gz')
+          target.write_bytes(bytes.fromhex(''.join(source.read_text(encoding='ascii').split())))
+          PY
+          echo 'e4e6c89fb4b9db485a6d3cd1fe0904c0dfe79d5c54532f0d41f7df5746c92fe1  /tmp/stage08_batch04.patch.gz' | sha256sum -c -
           gzip -dc /tmp/stage08_batch04.patch.gz > /tmp/stage08_batch04.patch
           echo '9a5500e8e3cfa36d34a1736765ad44dcaad8cc770dacb6f741e070140128f4b5  /tmp/stage08_batch04.patch' | sha256sum -c -
           git apply --check /tmp/stage08_batch04.patch
