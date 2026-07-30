@@ -19,6 +19,7 @@ on:
       - 'build_patches_v5/**'
       - 'build_patches_v6/**'
       - 'build_patches_v7/**'
+      - 'build_patches_v8/**'
       - '.github/workflows/build-generators-apk.yml'
 
 permissions:
@@ -27,7 +28,7 @@ permissions:
 jobs:
   build-apk:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 70
 
     defaults:
       run:
@@ -93,9 +94,26 @@ jobs:
           git apply build_patches_v7/stage08_batch04_analyze_fix.patch
           git diff --check
 
-      - name: Run Batch01 to Batch04 source contracts
+      - name: Apply Stage08 Batch05 source patch
         working-directory: .
-        run: node --test tests/generators_stage08_batch01_core_flow.test.js tests/generators_stage08_batch01_mobile_contract.test.js tests/generators_stage08_batch02_edit_dates_alerts_contract.test.js tests/generators_stage08_batch03_exit_load_contract.test.js tests/generators_stage08_batch04_receipt_printing_contract.test.js
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          source = Path('build_patches_v8/stage08_batch05.patch.gz.hex')
+          target = Path('/tmp/stage08_batch05.patch.gz')
+          target.write_bytes(bytes.fromhex(''.join(source.read_text(encoding='ascii').split())))
+          PY
+          echo 'a4ebe975adb644fcd2145a26eff51aaef79e877f814bc43bfe73760fcfbd52f6  /tmp/stage08_batch05.patch.gz' | sha256sum -c -
+          gzip -dc /tmp/stage08_batch05.patch.gz > /tmp/stage08_batch05.patch
+          echo '7b2fcaed090b2df8de2191a6c12e7c85d407f4c626b490addb925c6957ff881b  /tmp/stage08_batch05.patch' | sha256sum -c -
+          git apply --check /tmp/stage08_batch05.patch
+          git apply /tmp/stage08_batch05.patch
+          git diff --check
+
+      - name: Run Batch01 to Batch05 source contracts
+        working-directory: .
+        run: node --test tests/generators_stage08_batch01_core_flow.test.js tests/generators_stage08_batch01_mobile_contract.test.js tests/generators_stage08_batch02_edit_dates_alerts_contract.test.js tests/generators_stage08_batch03_exit_load_contract.test.js tests/generators_stage08_batch04_receipt_printing_contract.test.js tests/generators_stage08_batch05_activation_variants_contract.test.js
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
@@ -118,7 +136,7 @@ jobs:
           flutter create . --project-name nukhba_generators_mobile --org com.nukhba --platforms=android
           rm -f test/widget_test.dart
 
-      - name: Configure Android release basics and Bluetooth permissions
+      - name: Configure Android release basics and permissions
         shell: bash
         run: |
           if [ -f android/app/build.gradle.kts ]; then
@@ -156,22 +174,84 @@ jobs:
       - name: Run Flutter tests
         run: flutter test
 
-      - name: Build release APK
-        run: flutter build apk --release
-
-      - name: Package APK and checksum
+      - name: Configure Owner Android identity
         shell: bash
         run: |
-          cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/Nukhba_Generators_Stage08_Batch04.apk
-          cd build/app/outputs/flutter-apk
-          sha256sum Nukhba_Generators_Stage08_Batch04.apk > Nukhba_Generators_Stage08_Batch04_SHA256.txt
+          python - <<'PY'
+          from pathlib import Path
+          import re, shutil
+          gradle = Path('android/app/build.gradle.kts')
+          if not gradle.exists():
+              gradle = Path('android/app/build.gradle')
+          text = gradle.read_text(encoding='utf-8')
+          text = re.sub(r'applicationId\s*=\s*"[^"]+"', 'applicationId = "com.nukhba.generators.owner"', text)
+          text = re.sub(r'applicationId\s+"[^"]+"', 'applicationId "com.nukhba.generators.owner"', text)
+          gradle.write_text(text, encoding='utf-8')
+          manifest = Path('android/app/src/main/AndroidManifest.xml')
+          mtext = manifest.read_text(encoding='utf-8')
+          mtext = re.sub(r'android:label="[^"]+"', 'android:label="النخبة للمولدات"', mtext, count=1)
+          manifest.write_text(mtext, encoding='utf-8')
+          for source in Path('assets/launcher/owner').glob('mipmap-*'):
+              target = Path('android/app/src/main/res') / source.name
+              target.mkdir(parents=True, exist_ok=True)
+              shutil.copy2(source / 'ic_launcher.png', target / 'ic_launcher.png')
+          PY
 
-      - name: Upload release APK
+      - name: Build Owner release APK
+        run: flutter build apk --release --dart-define=APP_VARIANT=owner
+
+      - name: Preserve Owner APK
+        shell: bash
+        run: |
+          mkdir -p build/stage08_batch05
+          cp build/app/outputs/flutter-apk/app-release.apk build/stage08_batch05/Nukhba_Generators_Owner_Stage08_Batch05.apk
+
+      - name: Configure Collector Android identity
+        shell: bash
+        run: |
+          flutter clean
+          flutter pub get
+          python - <<'PY'
+          from pathlib import Path
+          import re, shutil
+          gradle = Path('android/app/build.gradle.kts')
+          if not gradle.exists():
+              gradle = Path('android/app/build.gradle')
+          text = gradle.read_text(encoding='utf-8')
+          text = re.sub(r'applicationId\s*=\s*"[^"]+"', 'applicationId = "com.nukhba.generators.collector"', text)
+          text = re.sub(r'applicationId\s+"[^"]+"', 'applicationId "com.nukhba.generators.collector"', text)
+          gradle.write_text(text, encoding='utf-8')
+          manifest = Path('android/app/src/main/AndroidManifest.xml')
+          mtext = manifest.read_text(encoding='utf-8')
+          mtext = re.sub(r'android:label="[^"]+"', 'android:label="النخبة للجابي"', mtext, count=1)
+          manifest.write_text(mtext, encoding='utf-8')
+          for source in Path('assets/launcher/collector').glob('mipmap-*'):
+              target = Path('android/app/src/main/res') / source.name
+              target.mkdir(parents=True, exist_ok=True)
+              shutil.copy2(source / 'ic_launcher.png', target / 'ic_launcher.png')
+          PY
+
+      - name: Build Collector release APK
+        run: flutter build apk --release --dart-define=APP_VARIANT=collector
+
+      - name: Package APKs and checksums
+        shell: bash
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk build/stage08_batch05/Nukhba_Generators_Collector_Stage08_Batch05.apk
+          cd build/stage08_batch05
+          sha256sum Nukhba_Generators_Owner_Stage08_Batch05.apk > Nukhba_Generators_Owner_Stage08_Batch05_SHA256.txt
+          sha256sum Nukhba_Generators_Collector_Stage08_Batch05.apk > Nukhba_Generators_Collector_Stage08_Batch05_SHA256.txt
+          sha256sum Nukhba_Generators_*_Stage08_Batch05.apk > Nukhba_Generators_Stage08_Batch05_All_SHA256.txt
+
+      - name: Upload Owner and Collector APKs
         uses: actions/upload-artifact@v4
         with:
-          name: Nukhba-Generators-Stage08-Batch04
+          name: Nukhba-Generators-Stage08-Batch05
           path: |
-            mobile/generators_mobile/build/app/outputs/flutter-apk/Nukhba_Generators_Stage08_Batch04.apk
-            mobile/generators_mobile/build/app/outputs/flutter-apk/Nukhba_Generators_Stage08_Batch04_SHA256.txt
+            mobile/generators_mobile/build/stage08_batch05/Nukhba_Generators_Owner_Stage08_Batch05.apk
+            mobile/generators_mobile/build/stage08_batch05/Nukhba_Generators_Collector_Stage08_Batch05.apk
+            mobile/generators_mobile/build/stage08_batch05/Nukhba_Generators_Owner_Stage08_Batch05_SHA256.txt
+            mobile/generators_mobile/build/stage08_batch05/Nukhba_Generators_Collector_Stage08_Batch05_SHA256.txt
+            mobile/generators_mobile/build/stage08_batch05/Nukhba_Generators_Stage08_Batch05_All_SHA256.txt
           if-no-files-found: error
           retention-days: 30
