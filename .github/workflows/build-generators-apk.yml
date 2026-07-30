@@ -16,6 +16,7 @@ on:
       - 'build_patches_v2/**'
       - 'build_patches_v3/**'
       - 'build_patches_v4/**'
+      - 'build_patches_v5/**'
       - '.github/workflows/build-generators-apk.yml'
 
 permissions:
@@ -63,9 +64,20 @@ jobs:
           git apply /tmp/stage08_batch03.patch
           git diff --check
 
-      - name: Run Batch01 to Batch03 source contracts
+      - name: Apply Stage08 Batch04 source patch
         working-directory: .
-        run: node --test tests/generators_stage08_batch01_core_flow.test.js tests/generators_stage08_batch01_mobile_contract.test.js tests/generators_stage08_batch02_edit_dates_alerts_contract.test.js tests/generators_stage08_batch03_exit_load_contract.test.js
+        shell: bash
+        run: |
+          cat build_patches_v5/stage08_batch04.patch.gz.b64.part* | base64 --decode --ignore-garbage > /tmp/stage08_batch04.patch.gz
+          gzip -dc /tmp/stage08_batch04.patch.gz > /tmp/stage08_batch04.patch
+          echo '9a5500e8e3cfa36d34a1736765ad44dcaad8cc770dacb6f741e070140128f4b5  /tmp/stage08_batch04.patch' | sha256sum -c -
+          git apply --check /tmp/stage08_batch04.patch
+          git apply /tmp/stage08_batch04.patch
+          git diff --check
+
+      - name: Run Batch01 to Batch04 source contracts
+        working-directory: .
+        run: node --test tests/generators_stage08_batch01_core_flow.test.js tests/generators_stage08_batch01_mobile_contract.test.js tests/generators_stage08_batch02_edit_dates_alerts_contract.test.js tests/generators_stage08_batch03_exit_load_contract.test.js tests/generators_stage08_batch04_receipt_printing_contract.test.js
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
@@ -88,7 +100,7 @@ jobs:
           flutter create . --project-name nukhba_generators_mobile --org com.nukhba --platforms=android
           rm -f test/widget_test.dart
 
-      - name: Configure Android release basics
+      - name: Configure Android release basics and Bluetooth permissions
         shell: bash
         run: |
           if [ -f android/app/build.gradle.kts ]; then
@@ -96,10 +108,23 @@ jobs:
           elif [ -f android/app/build.gradle ]; then
             sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 24/' android/app/build.gradle
           fi
-          manifest='android/app/src/main/AndroidManifest.xml'
-          if ! grep -q 'android.permission.INTERNET' "$manifest"; then
-            sed -i '/<manifest/a\    <uses-permission android:name="android.permission.INTERNET" />' "$manifest"
-          fi
+          python - <<'PY'
+          from pathlib import Path
+          manifest = Path('android/app/src/main/AndroidManifest.xml')
+          text = manifest.read_text(encoding='utf-8')
+          permissions = [
+              '    <uses-permission android:name="android.permission.INTERNET" />',
+              '    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />',
+              '    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />',
+              '    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />',
+              '    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />',
+          ]
+          missing = [line for line in permissions if line.split('android:name="', 1)[1].split('"', 1)[0] not in text]
+          if missing:
+              end = text.find('>') + 1
+              text = text[:end] + '\n' + '\n'.join(missing) + text[end:]
+              manifest.write_text(text, encoding='utf-8')
+          PY
 
       - name: Get Flutter packages
         run: flutter pub get
@@ -119,16 +144,16 @@ jobs:
       - name: Package APK and checksum
         shell: bash
         run: |
-          cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/Nukhba_Generators_Stage08_Batch03.apk
+          cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/Nukhba_Generators_Stage08_Batch04.apk
           cd build/app/outputs/flutter-apk
-          sha256sum Nukhba_Generators_Stage08_Batch03.apk > Nukhba_Generators_Stage08_Batch03_SHA256.txt
+          sha256sum Nukhba_Generators_Stage08_Batch04.apk > Nukhba_Generators_Stage08_Batch04_SHA256.txt
 
       - name: Upload release APK
         uses: actions/upload-artifact@v4
         with:
-          name: Nukhba-Generators-Stage08-Batch03
+          name: Nukhba-Generators-Stage08-Batch04
           path: |
-            mobile/generators_mobile/build/app/outputs/flutter-apk/Nukhba_Generators_Stage08_Batch03.apk
-            mobile/generators_mobile/build/app/outputs/flutter-apk/Nukhba_Generators_Stage08_Batch03_SHA256.txt
+            mobile/generators_mobile/build/app/outputs/flutter-apk/Nukhba_Generators_Stage08_Batch04.apk
+            mobile/generators_mobile/build/app/outputs/flutter-apk/Nukhba_Generators_Stage08_Batch04_SHA256.txt
           if-no-files-found: error
           retention-days: 30
