@@ -1,0 +1,156 @@
+] as Map? ?? const {}),
+-    );
++    return OwnerPaymentResult.fromJson(data);
+   }
+ 
+   Future<CollectorCollectionsWorkspace> getCollectorInvoices({String? query}) async =>
+diff --git a/mobile/generators_mobile/lib/features/simple_billing/domain/simple_billing_models.dart b/mobile/generators_mobile/lib/features/simple_billing/domain/simple_billing_models.dart
+index 7491b2c..7c263bc 100644
+--- a/mobile/generators_mobile/lib/features/simple_billing/domain/simple_billing_models.dart
++++ b/mobile/generators_mobile/lib/features/simple_billing/domain/simple_billing_models.dart
+@@ -198,6 +198,76 @@ final class MonthlyInvoice {
+   bool get isPaid => status == 'paid' || remainingAmountIqd <= 0;
+   bool get isPartial => status == 'partial';
+   String get statusLabel => isPaid ? 'مسددة' : isPartial ? 'جزئي' : 'غير مسددة';
++
++  MonthlyInvoice applyPayment(OwnerPaymentResult result) {
++    if (result.invoiceId != id) return this;
++    final existingPayment = payments.any((item) => item.id == result.payment.id);
++    return MonthlyInvoice(
++      id: id,
++      invoiceNumber: invoiceNumber,
++      status: result.status,
++      subscriberName: subscriberName,
++      accountNumber: accountNumber,
++      periodKey: periodKey,
++      phone: phone,
++      area: area,
++      routeName: routeName,
++      meterNumber: meterNumber,
++      generatorName: generatorName,
++      contractedAmperes: contractedAmperes,
++      pricePerAmpIqd: pricePerAmpIqd,
++      fixedFeeIqd: fixedFeeIqd,
++      amountIqd: amountIqd,
++      paidAmountIqd: result.paidAmountIqd,
++      remainingAmountIqd: result.remainingAmountIqd,
++      consumption: consumption,
++      lastPaymentAt: result.lastPaymentAt,
++      payments: existingPayment ? payments : List.unmodifiable([result.payment, ...payments]),
++    );
++  }
++}
++
++final class PendingBillingSubscriber {
++  const PendingBillingSubscriber({
++    required this.id,
++    required this.accountNumber,
++    required this.fullName,
++    required this.generatorName,
++    required this.contractedAmperes,
++    required this.hasReading,
++    this.phone,
++    this.area,
++    this.routeName,
++    this.meterNumber,
++  });
++
++  factory PendingBillingSubscriber.fromJson(Map<String, dynamic> json) =>
++      PendingBillingSubscriber(
++        id: json['id']?.toString() ?? '',
++        accountNumber: json['account_number']?.toString() ?? '',
++        fullName: json['full_name']?.toString() ?? '',
++        phone: json['phone']?.toString(),
++        area: json['area']?.toString(),
++        routeName: json['route_name']?.toString(),
++        meterNumber: json['meter_number']?.toString(),
++        generatorName: json['generator_name']?.toString() ?? '',
++        contractedAmperes: _int(json['contracted_amperes']),
++        hasReading: json['has_reading'] == true,
++      );
++
++  final String id;
++  final String accountNumber;
++  final String fullName;
++  final String? phone;
++  final String? area;
++  final String? routeName;
++  final String? meterNumber;
++  final String generatorName;
++  final int contractedAmperes;
++  final bool hasReading;
++
++  String get billingStateLabel =>
++      hasReading ? 'بانتظار إنشاء الفاتورة' : 'بانتظار قراءة العداد';
+ }
+ 
+ final class MonthlySummary {
+@@ -243,6 +313,51 @@ final class MonthlySummary {
+   final int partialCount;
+   final int paidCount;
+   final bool canCreateInvoices;
++
++  MonthlySummary applyPayment({
++    required MonthlyInvoice before,
++    required MonthlyInvoice after,
++  }) {
++    final paidDelta = after.paidAmountIqd - before.paidAmountIqd;
++    final remainingDelta = after.remainingAmountIqd - before.remainingAmountIqd;
++    int unpaid = unpaidCount;
++    int partial = partialCount;
++    int paid = paidCount;
++    void removeStatus(MonthlyInvoice invoice) {
++      if (invoice.isPaid) {
++        paid -= 1;
++      } else if (invoice.isPartial) {
++        partial -= 1;
++      } else {
++        unpaid -= 1;
++      }
++    }
++    void addStatus(MonthlyInvoice invoice) {
++      if (invoice.isPaid) {
++        paid += 1;
++      } else if (invoice.isPartial) {
++        partial += 1;
++      } else {
++        unpaid += 1;
++      }
++    }
++    removeStatus(before);
++    addStatus(after);
++    return MonthlySummary(
++      readingCount: readingCount,
++      requiredPriceCount: requiredPriceCount,
++      priceCount: priceCount,
++      missingPriceCount: missingPriceCount,
++      invoiceCount: invoiceCount,
++      totalIqd: totalIqd,
++      paidIqd: paidIqd + paidDelta,
++      remainingIqd: remainingIqd + remainingDelta,
++      unpaidCount: unpaid,
++      partialCount: partial,
++      paidCount: paid,
++      canCreateInvoices: canCreateInvoices,
++    );
++  }
+ }
+ 
+ final class MonthlyWorkspace {
+@@ -250,6 +365,7 @@ final class MonthlyWorkspace {
+     required this.period,
+     required this.generators,
+     required this.invoices,
++    required this.pendingSubscribers,
+     required this.summary,
+   });
+ 
+@@ -263,13 +379,68 @@ final class MonthlyWorkspace {
+             .whereType<Map>()
+             .map((item) => MonthlyInvoice.fromJson(Map<String, dynamic>.from(item)))
+             .toList(growable: false),
++        pendingSubscribers: (json['pending_subscribers'] as List? ?? const [])
++            .whereType<Map>()
++            .map((item) => PendingBillingSubscriber.fromJson(Map<String, dynamic>.from(item)))
++            .toList(growable: false),
+         summary: MonthlySummary.fromJson(Map<String, dynamic>.from(json[

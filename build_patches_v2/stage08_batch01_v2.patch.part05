@@ -1,0 +1,114 @@
++                borderRadius: BorderRadius.circular(14),
++                border: Border.all(
++                  color: invoice.isPaid
++                      ? AppTheme.teal.withValues(alpha: 0.45)
++                      : AppTheme.orange.withValues(alpha: 0.55),
++                ),
++              ),
++              child: Column(
++                crossAxisAlignment: CrossAxisAlignment.start,
++                children: [
++                  Text(invoice.isPaid ? 'المبلغ المستحق' : 'المبلغ المستحق الآن'),
++                  Text(
++                    '${_money(invoice.remainingAmountIqd)} د.ع',
++                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
++                  ),
++                ],
++              ),
++            ),
++            const SizedBox(height: 10),
+             SizedBox(
+               width: double.infinity,
+               child: ElevatedButton.icon(
+@@ -489,13 +622,34 @@ final class _PaymentDialogState extends State<_PaymentDialog> {
+           crossAxisAlignment: CrossAxisAlignment.stretch,
+           children: [
+             Text(widget.invoice.subscriberName, style: const TextStyle(fontWeight: FontWeight.w900)),
+-            Text('المتبقي: ${_money(widget.invoice.remainingAmountIqd)} د.ع'),
++            const SizedBox(height: 10),
++            Container(
++              padding: const EdgeInsets.all(12),
++              decoration: BoxDecoration(
++                color: AppTheme.orange.withValues(alpha: 0.12),
++                borderRadius: BorderRadius.circular(12),
++                border: Border.all(color: AppTheme.orange.withValues(alpha: 0.55)),
++              ),
++              child: Column(
++                crossAxisAlignment: CrossAxisAlignment.start,
++                children: [
++                  const Text('المبلغ المستحق حاليًا'),
++                  Text(
++                    '${_money(widget.invoice.remainingAmountIqd)} د.ع',
++                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
++                  ),
++                ],
++              ),
++            ),
+             const SizedBox(height: 14),
+             TextField(
+               controller: _amount,
++              autofocus: true,
+               keyboardType: TextInputType.number,
+               decoration: InputDecoration(
+-                labelText: 'مبلغ الدفعة',
++                labelText: 'مبلغ الدفعة الآن',
++                helperText: 'سيُخصم فورًا من المبلغ المتبقي',
++                suffixText: 'د.ع',
+                 errorText: _error,
+               ),
+             ),
+diff --git a/mobile/generators_mobile/test/stage08_batch01_flow_models_test.dart b/mobile/generators_mobile/test/stage08_batch01_flow_models_test.dart
+new file mode 100644
+index 0000000..78a9e9b
+--- /dev/null
++++ b/mobile/generators_mobile/test/stage08_batch01_flow_models_test.dart
+@@ -0,0 +1,89 @@
++import 'package:flutter_test/flutter_test.dart';
++import 'package:nukhba_generators_mobile/features/simple_billing/domain/simple_billing_models.dart';
++
++void main() {
++  test('workspace parses pending subscriber without adding invoice debt', () {
++    final workspace = MonthlyWorkspace.fromJson({
++      'period': {'id': 'period-1', 'period_key': '2026-07'},
++      'generators': const [],
++      'invoices': const [],
++      'pending_subscribers': [
++        {
++          'id': 'subscriber-1',
++          'account_number': 'A-1',
++          'full_name': 'مشترك جديد',
++          'generator_name': 'مولدة',
++          'contracted_amperes': 5,
++          'has_reading': false,
++        },
++      ],
++      'summary': {'total_iqd': 0, 'remaining_iqd': 0},
++    });
++
++    expect(workspace.invoices, isEmpty);
++    expect(workspace.summary.totalIqd, 0);
++    expect(workspace.pendingSubscribers.single.fullName, 'مشترك جديد');
++    expect(
++      workspace.pendingSubscribers.single.billingStateLabel,
++      'بانتظار قراءة العداد',
++    );
++  });
++
++  test('owner payment result updates remaining and summary locally', () {
++    final workspace = MonthlyWorkspace.fromJson({
++      'period': {'id': 'period-1', 'period_key': '2026-07'},
++      'generators': const [],
++      'pending_subscribers': const [],
++      'invoices': [
++        {
++          'id': 'invoice-1',
++          'invoice_number': 'INV-1',
++          'status': 'unpaid',
++          'subscriber_name': 'مشترك',
++          'account_number': 'A-1',
++          'generator_name': 'مولدة',
++          'contracted_amperes': 10,
++          'price_per_amp_iqd': 10000,
++          'fixed_fee_iqd': 0,
++          'amount_iqd': 100000,
++          'paid_amount_iqd': 0,

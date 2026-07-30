@@ -1,0 +1,124 @@
+diff --git a/mobile/generators_mobile/lib/features/domain/data/domain_repository.dart b/mobile/generators_mobile/lib/features/domain/data/domain_repository.dart
+index 17135eb..3f7b3bd 100644
+--- a/mobile/generators_mobile/lib/features/domain/data/domain_repository.dart
++++ b/mobile/generators_mobile/lib/features/domain/data/domain_repository.dart
+@@ -92,12 +92,14 @@ final class DomainRepository {
+   }
+ 
+   Future<GeneratorSubscriber> saveSubscriber({
++    required String tenantId,
+     String? id,
+     required Map<String, dynamic> input,
+   }) async {
+     final data = id == null
+         ? await _api.createOwnerSubscriber(input)
+         : await _api.updateOwnerSubscriber(id, input);
++    await _upsertSubscriberCache(tenantId, data);
+     return GeneratorSubscriber.fromApi(data);
+   }
+ 
+@@ -129,6 +131,48 @@ final class DomainRepository {
+     return AssignedDomain.fromApi(data);
+   }
+ 
++  Future<void> _upsertSubscriberCache(
++    String tenantId,
++    Map<String, dynamic> subscriber,
++  ) async {
++    final key = 'stage03.domain.subscribers.$tenantId';
++    final cached = await _database.getMeta(key);
++    if (cached == null || cached.isEmpty) return;
++
++    try {
++      final data = Map<String, dynamic>.from(jsonDecode(cached) as Map);
++      final subscribers = (data['subscribers'] as List? ?? const [])
++          .whereType<Map>()
++          .map((item) => Map<String, dynamic>.from(item))
++          .toList(growable: true);
++      final index = subscribers.indexWhere((item) => item['id'] == subscriber['id']);
++      final isNew = index < 0;
++      if (isNew) {
++        subscribers.add(Map<String, dynamic>.from(subscriber));
++      } else {
++        subscribers[index] = Map<String, dynamic>.from(subscriber);
++      }
++      subscribers.sort((a, b) {
++        final aActive = a['status'] == 'active' ? 0 : 1;
++        final bActive = b['status'] == 'active' ? 0 : 1;
++        if (aActive != bActive) return aActive.compareTo(bActive);
++        return (a['full_name']?.toString() ?? '')
++            .compareTo(b['full_name']?.toString() ?? '');
++      });
++      data['subscribers'] = subscribers;
++      if (isNew && data['summary'] is Map) {
++        final summary = Map<String, dynamic>.from(data['summary'] as Map);
++        final total = summary['subscribers_total'];
++        summary['subscribers_total'] =
++            (total is num ? total.toInt() : int.tryParse(total?.toString() ?? '') ?? 0) + 1;
++        data['summary'] = summary;
++      }
++      await _database.setMeta(key, jsonEncode(data));
++    } catch (_) {
++      // A corrupt optional cache must never block a successful server save.
++    }
++  }
++
+   Future<Map<String, dynamic>> _loadCached({
+     required String key,
+     required Future<Map<String, dynamic>> Function() remote,
+diff --git a/mobile/generators_mobile/lib/features/domain/presentation/domain_subscribers_tab.dart b/mobile/generators_mobile/lib/features/domain/presentation/domain_subscribers_tab.dart
+index a250868..b8a996e 100644
+--- a/mobile/generators_mobile/lib/features/domain/presentation/domain_subscribers_tab.dart
++++ b/mobile/generators_mobile/lib/features/domain/presentation/domain_subscribers_tab.dart
+@@ -56,9 +56,29 @@ final class _SubscribersTabState extends State<_SubscribersTab> {
+     );
+     if (input == null || !mounted) return;
+     try {
+-      await widget.repository.saveSubscriber(id: current?.id, input: input);
+-      _message(context, current == null ? 'تمت إضافة المشترك.' : 'تم تعديل المشترك.');
+-      await _load();
++      final saved = await widget.repository.saveSubscriber(
++        tenantId: widget.tenantId,
++        id: current?.id,
++        input: input,
++      );
++      if (!mounted) return;
++      setState(() {
++        final updated = _items.toList(growable: true);
++        final index = updated.indexWhere((item) => item.id == saved.id);
++        if (index < 0) {
++          updated.add(saved);
++        } else {
++          updated[index] = saved;
++        }
++        updated.sort((a, b) {
++          final aActive = a.isActive ? 0 : 1;
++          final bActive = b.isActive ? 0 : 1;
++          if (aActive != bActive) return aActive.compareTo(bActive);
++          return a.fullName.compareTo(b.fullName);
++        });
++        _items = List.unmodifiable(updated);
++      });
++      _message(context, current == null ? 'تمت إضافة المشترك وظهر مباشرة.' : 'تم تعديل المشترك.');
+     } on DioException catch (error) {
+       _message(context, _apiMessage(error));
+     }
+diff --git a/mobile/generators_mobile/lib/features/simple_billing/data/simple_billing_repository.dart b/mobile/generators_mobile/lib/features/simple_billing/data/simple_billing_repository.dart
+index 764a048..9f45b6d 100644
+--- a/mobile/generators_mobile/lib/features/simple_billing/data/simple_billing_repository.dart
++++ b/mobile/generators_mobile/lib/features/simple_billing/data/simple_billing_repository.dart
+@@ -34,7 +34,7 @@ final class SimpleBillingRepository {
+ 
+   Future<void> createInvoices(String periodId) => _api.createInvoices(periodId);
+ 
+-  Future<InvoicePayment> recordPayment({
++  Future<OwnerPaymentResult> recordPayment({
+     required String invoiceId,
+     required int amountIqd,
+     required String paymentMethod,
+@@ -47,9 +47,7 @@ final class SimpleBillingRepository {
+       paymentMethod: paymentMethod,
+       note: note,
+     );
+-    return InvoicePayment.fromJson(
+-      Map<String, dynamic>.from(data['payment'

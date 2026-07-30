@@ -1,0 +1,162 @@
+diff --git a/STAGE08_BATCH02_REPORT.txt b/STAGE08_BATCH02_REPORT.txt
+new file mode 100644
+index 0000000..bdae944
+--- /dev/null
++++ b/STAGE08_BATCH02_REPORT.txt
+@@ -0,0 +1,33 @@
++تقرير الدفعة الثانية — نسخة النخبة للمولدات والجباية
++=====================================================
++
++القاعدة المقبولة
++----------------
++Nukhba_Generators_Stage08_Batch01_Source.zip بعد قبول المستخدم للدفعة الأولى بكلمة «تم».
++
++التعديلات المنفذة — 3 فقط
++-------------------------
++1) أزرار تعديل واضحة:
++- زر تعديل ظاهر داخل بطاقات المولدات.
++- زر تعديل ظاهر داخل بطاقات المسارات.
++- زر تعديل ظاهر داخل بطاقات المشتركين.
++- بقي تغيير الحالة منفصلًا ولم تتغير صلاحيات أو حسابات.
++
++2) تسجيل وإظهار التواريخ:
++- إظهار تاريخ إضافة المشترك من created_at المسجل أصلًا على السيرفر.
++- إظهار تاريخ إنشاء الفاتورة.
++- إظهار تاريخ ووقت تسديد كل دفعة لدى صاحب المولدة والجابي.
++- عرض التاريخ والوقت بصيغة عربية واضحة اعتمادًا على وقت الجهاز المحلي.
++
++3) تنبيهات الاستحقاق والمتأخرات:
++- بطاقة تنبيه أعلى صفحة الفواتير تعرض مستحق الشهر الحالي.
++- أي رصيد غير مسدد لفترة أقدم من الشهر الحالي يظهر كمتأخرات.
++- بطاقات الفواتير تعرض شارة «مستحق هذا الشهر» أو «متأخر».
++- لا يوجد تاريخ استحقاق اصطناعي أو قاعدة أيام مخترعة؛ التصنيف يعتمد على شهر الفاتورة فقط.
++
++الحدود
++------
++- لم تتغير معادلات الفواتير أو الدفعات أو المتبقي.
++- لم يتم نشر Backend أو تعديل Render.
++- لم تتم إضافة الطباعة أو PDF أو التفعيل أو نسخة الجابي المستقلة.
++- لم يتم تنفيذ أي تعديل رابع.
+diff --git a/mobile/generators_mobile/lib/core/formatters/date_time_formatter.dart b/mobile/generators_mobile/lib/core/formatters/date_time_formatter.dart
+new file mode 100644
+index 0000000..5a1a771
+--- /dev/null
++++ b/mobile/generators_mobile/lib/core/formatters/date_time_formatter.dart
+@@ -0,0 +1,17 @@
++String formatAppDateTime(String? raw) {
++  if (raw == null || raw.trim().isEmpty) return 'غير مسجل';
++  final parsed = DateTime.tryParse(raw.trim());
++  if (parsed == null) return raw;
++  final value = parsed.toLocal();
++  return '${_two(value.day)}/${_two(value.month)}/${value.year} - ${_two(value.hour)}:${_two(value.minute)}';
++}
++
++String formatAppDate(String? raw) {
++  if (raw == null || raw.trim().isEmpty) return 'غير مسجل';
++  final parsed = DateTime.tryParse(raw.trim());
++  if (parsed == null) return raw;
++  final value = parsed.toLocal();
++  return '${_two(value.day)}/${_two(value.month)}/${value.year}';
++}
++
++String _two(int value) => value.toString().padLeft(2, '0');
+diff --git a/mobile/generators_mobile/lib/features/domain/presentation/domain_generators_tab.dart b/mobile/generators_mobile/lib/features/domain/presentation/domain_generators_tab.dart
+index 9073acc..ee0a570 100644
+--- a/mobile/generators_mobile/lib/features/domain/presentation/domain_generators_tab.dart
++++ b/mobile/generators_mobile/lib/features/domain/presentation/domain_generators_tab.dart
+@@ -78,13 +78,23 @@ final class _GeneratorsTabState extends State<_GeneratorsTab> {
+                 ),
+                 isThreeLine: true,
+                 onTap: () => _edit(item),
+-                trailing: PopupMenuButton<String>(
+-                  onSelected: (value) => value == 'edit' ? _edit(item) : _status(item, value),
+-                  itemBuilder: (_) => const [
+-                    PopupMenuItem(value: 'edit', child: Text('تعديل')),
+-                    PopupMenuItem(value: 'active', child: Text('تفعيل')),
+-                    PopupMenuItem(value: 'maintenance', child: Text('صيانة')),
+-                    PopupMenuItem(value: 'inactive', child: Text('إيقاف')),
++                trailing: Row(
++                  mainAxisSize: MainAxisSize.min,
++                  children: [
++                    IconButton(
++                      tooltip: 'تعديل المولدة',
++                      onPressed: () => _edit(item),
++                      icon: const Icon(Icons.edit_outlined),
++                    ),
++                    PopupMenuButton<String>(
++                      tooltip: 'تغيير الحالة',
++                      onSelected: (value) => _status(item, value),
++                      itemBuilder: (_) => const [
++                        PopupMenuItem(value: 'active', child: Text('تفعيل')),
++                        PopupMenuItem(value: 'maintenance', child: Text('صيانة')),
++                        PopupMenuItem(value: 'inactive', child: Text('إيقاف')),
++                      ],
++                    ),
+                   ],
+                 ),
+               ),
+diff --git a/mobile/generators_mobile/lib/features/domain/presentation/domain_management_page.dart b/mobile/generators_mobile/lib/features/domain/presentation/domain_management_page.dart
+index ac8bda9..c619571 100644
+--- a/mobile/generators_mobile/lib/features/domain/presentation/domain_management_page.dart
++++ b/mobile/generators_mobile/lib/features/domain/presentation/domain_management_page.dart
+@@ -1,6 +1,7 @@
+ import 'package:dio/dio.dart';
+ import 'package:flutter/material.dart';
+ 
++import '../../../core/formatters/date_time_formatter.dart';
+ import '../../../core/theme/app_theme.dart';
+ import '../data/domain_repository.dart';
+ import '../domain/generator_domain.dart';
+diff --git a/mobile/generators_mobile/lib/features/domain/presentation/domain_routes_tab.dart b/mobile/generators_mobile/lib/features/domain/presentation/domain_routes_tab.dart
+index 4883e95..5481950 100644
+--- a/mobile/generators_mobile/lib/features/domain/presentation/domain_routes_tab.dart
++++ b/mobile/generators_mobile/lib/features/domain/presentation/domain_routes_tab.dart
+@@ -82,12 +82,22 @@ final class _RoutesTabState extends State<_RoutesTab> {
+                 ),
+                 isThreeLine: true,
+                 onTap: () => _edit(item),
+-                trailing: PopupMenuButton<String>(
+-                  onSelected: (value) => value == 'edit' ? _edit(item) : _status(item, value),
+-                  itemBuilder: (_) => const [
+-                    PopupMenuItem(value: 'edit', child: Text('تعديل')),
+-                    PopupMenuItem(value: 'active', child: Text('تفعيل')),
+-                    PopupMenuItem(value: 'inactive', child: Text('إيقاف')),
++                trailing: Row(
++                  mainAxisSize: MainAxisSize.min,
++                  children: [
++                    IconButton(
++                      tooltip: 'تعديل المسار',
++                      onPressed: () => _edit(item),
++                      icon: const Icon(Icons.edit_outlined),
++                    ),
++                    PopupMenuButton<String>(
++                      tooltip: 'تغيير الحالة',
++                      onSelected: (value) => _status(item, value),
++                      itemBuilder: (_) => const [
++                        PopupMenuItem(value: 'active', child: Text('تفعيل')),
++                        PopupMenuItem(value: 'inactive', child: Text('إيقاف')),
++                      ],
++                    ),
+                   ],
+                 ),
+               ),
+diff --git a/mobile/generators_mobile/lib/features/domain/presentation/domain_subscribers_tab.dart b/mobile/generators_mobile/lib/features/domain/presentation/domain_subscribers_tab.dart
+index b8a996e..40a5dbd 100644
+--- a/mobile/generators_mobile/lib/features/domain/presentation/domain_subscribers_tab.dart
++++ b/mobile/generators_mobile/lib/features/domain/presentation/domain_subscribers_tab.dart
+@@ -110,17 +110,27 @@ final class _SubscribersTabState extends State<_SubscribersTab> {
+                 subtitle: Text(
+                   '${item.accountNumber} • ${item.phone ?? 'بدون هاتف'}\n'
+                   '${item.generator.name} • ${item.route?.name ?? 'بدون مسار'} • ${item.contractedAmperes} أمبير\n'
+-                  '${_statusLabel(item.status)}',
++                  '${_statusLabel(item.status)} • أضيف: ${formatAppDate(item.createdAt)}',
+                 ),
+                 isThreeLine: true,
+                 onTap: () => _edit(item),
+-                trailing: PopupMenuButton<String>(
+-                  onSelected: (value) => value == 'edit' ? _edit(item) : _status(item, value),
+-                  itemBuilder: (_) => const [
+-                    PopupMenuItem(value: 'edit', child: Text('تعديل')),
+-                    PopupMenuItem(value: 'active', child: Text('تفعيل')),
+-                    PopupMenuItem(value: 'suspended', child: Text('تعليق')),
+-                    PopupMenuItem(value: 'disconnected', child: Text('قطع')),
