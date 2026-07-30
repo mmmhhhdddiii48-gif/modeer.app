@@ -20,6 +20,7 @@ on:
       - 'build_patches_v6/**'
       - 'build_patches_v7/**'
       - 'build_patches_v8/**'
+      - 'build_patches_v9/**'
       - '.github/workflows/build-generators-apk.yml'
 
 permissions:
@@ -94,7 +95,7 @@ jobs:
           git apply build_patches_v7/stage08_batch04_analyze_fix.patch
           git diff --check
 
-      - name: Apply Stage08 Batch05 source patch
+      - name: Apply Stage08 Batch05 tracked source patch
         working-directory: .
         shell: bash
         run: |
@@ -109,6 +110,23 @@ jobs:
           echo '7b2fcaed090b2df8de2191a6c12e7c85d407f4c626b490addb925c6957ff881b  /tmp/stage08_batch05.patch' | sha256sum -c -
           git apply --check /tmp/stage08_batch05.patch
           git apply /tmp/stage08_batch05.patch
+          git diff --check
+
+      - name: Apply Stage08 Batch05 new files correction
+        working-directory: .
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          source = Path('build_patches_v9/stage08_batch05_new_files.patch.gz.hex')
+          target = Path('/tmp/stage08_batch05_new_files.patch.gz')
+          target.write_bytes(bytes.fromhex(''.join(source.read_text(encoding='ascii').split())))
+          PY
+          echo '3ea42fd7cb9c92fd6a9663ad4b4b9a00beb8f7bdf5da46a403c1cec2df5ba9d8  /tmp/stage08_batch05_new_files.patch.gz' | sha256sum -c -
+          gzip -dc /tmp/stage08_batch05_new_files.patch.gz > /tmp/stage08_batch05_new_files.patch
+          echo '3fa619d3043d2ace6ca0e81ed35d238b25d6e3357f5d20145c25820f6135e553  /tmp/stage08_batch05_new_files.patch' | sha256sum -c -
+          git apply --check /tmp/stage08_batch05_new_files.patch
+          git apply /tmp/stage08_batch05_new_files.patch
           git diff --check
 
       - name: Run Batch01 to Batch05 source contracts
@@ -174,12 +192,31 @@ jobs:
       - name: Run Flutter tests
         run: flutter test
 
+      - name: Create Android vector launcher icons
+        shell: bash
+        run: |
+          mkdir -p android/app/src/main/res/drawable
+          cat > android/app/src/main/res/drawable/nukhba_owner_launcher.xml <<'XML'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+            <path android:fillColor="#081C24" android:pathData="M0,0h108v108h-108z" />
+            <path android:fillColor="#24B8B1" android:pathData="M22,66h13v20h-13zM42,51h13v35h-13zM62,34h13v52h-13z" />
+            <path android:fillColor="#F28C28" android:pathData="M30,53l9,-9l12,12l28,-29l9,9l-37,38z" />
+          </vector>
+          XML
+          cat > android/app/src/main/res/drawable/nukhba_collector_launcher.xml <<'XML'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+            <path android:fillColor="#081C24" android:pathData="M0,0h108v108h-108z" />
+            <path android:fillColor="#24B8B1" android:pathData="M22,61h13v19h-13zM42,47h13v33h-13zM62,31h13v49h-13z" />
+            <path android:fillColor="#F28C28" android:pathData="M30,49l9,-9l12,12l28,-29l9,9l-37,38zM0,88h108v20h-108z" />
+          </vector>
+          XML
+
       - name: Configure Owner Android identity
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
-          import re, shutil
+          import re
           gradle = Path('android/app/build.gradle.kts')
           if not gradle.exists():
               gradle = Path('android/app/build.gradle')
@@ -190,11 +227,8 @@ jobs:
           manifest = Path('android/app/src/main/AndroidManifest.xml')
           mtext = manifest.read_text(encoding='utf-8')
           mtext = re.sub(r'android:label="[^"]+"', 'android:label="النخبة للمولدات"', mtext, count=1)
+          mtext = re.sub(r'android:icon="[^"]+"', 'android:icon="@drawable/nukhba_owner_launcher"', mtext, count=1)
           manifest.write_text(mtext, encoding='utf-8')
-          for source in Path('assets/launcher/owner').glob('mipmap-*'):
-              target = Path('android/app/src/main/res') / source.name
-              target.mkdir(parents=True, exist_ok=True)
-              shutil.copy2(source / 'ic_launcher.png', target / 'ic_launcher.png')
           PY
 
       - name: Build Owner release APK
@@ -213,7 +247,7 @@ jobs:
           flutter pub get
           python - <<'PY'
           from pathlib import Path
-          import re, shutil
+          import re
           gradle = Path('android/app/build.gradle.kts')
           if not gradle.exists():
               gradle = Path('android/app/build.gradle')
@@ -224,11 +258,8 @@ jobs:
           manifest = Path('android/app/src/main/AndroidManifest.xml')
           mtext = manifest.read_text(encoding='utf-8')
           mtext = re.sub(r'android:label="[^"]+"', 'android:label="النخبة للجابي"', mtext, count=1)
+          mtext = re.sub(r'android:icon="[^"]+"', 'android:icon="@drawable/nukhba_collector_launcher"', mtext, count=1)
           manifest.write_text(mtext, encoding='utf-8')
-          for source in Path('assets/launcher/collector').glob('mipmap-*'):
-              target = Path('android/app/src/main/res') / source.name
-              target.mkdir(parents=True, exist_ok=True)
-              shutil.copy2(source / 'ic_launcher.png', target / 'ic_launcher.png')
           PY
 
       - name: Build Collector release APK
