@@ -1,0 +1,145 @@
++    this.area,
++    this.routeName,
++    this.meterNumber,
++  });
++
++  factory PendingBillingSubscriber.fromJson(Map<String, dynamic> json) =>
++      PendingBillingSubscriber(
++        id: json['id']?.toString() ?? '',
++        accountNumber: json['account_number']?.toString() ?? '',
++        fullName: json['full_name']?.toString() ?? '',
++        phone: json['phone']?.toString(),
++        area: json['area']?.toString(),
++        routeName: json['route_name']?.toString(),
++        meterNumber: json['meter_number']?.toString(),
++        generatorName: json['generator_name']?.toString() ?? '',
++        contractedAmperes: _int(json['contracted_amperes']),
++        hasReading: json['has_reading'] == true,
++      );
++
++  final String id;
++  final String accountNumber;
++  final String fullName;
++  final String? phone;
++  final String? area;
++  final String? routeName;
++  final String? meterNumber;
++  final String generatorName;
++  final int contractedAmperes;
++  final bool hasReading;
++
++  String get billingStateLabel =>
++      hasReading ? 'بانتظار إنشاء الفاتورة' : 'بانتظار قراءة العداد';
+ }
+ 
+ final class MonthlySummary {
+@@ -243,6 +313,51 @@ final class MonthlySummary {
+   final int partialCount;
+   final int paidCount;
+   final bool canCreateInvoices;
++
++  MonthlySummary applyPayment({
++    required MonthlyInvoice before,
++    required MonthlyInvoice after,
++  }) {
++    final paidDelta = after.paidAmountIqd - before.paidAmountIqd;
++    final remainingDelta = after.remainingAmountIqd - before.remainingAmountIqd;
++    int unpaid = unpaidCount;
++    int partial = partialCount;
++    int paid = paidCount;
++    void removeStatus(MonthlyInvoice invoice) {
++      if (invoice.isPaid) {
++        paid -= 1;
++      } else if (invoice.isPartial) {
++        partial -= 1;
++      } else {
++        unpaid -= 1;
++      }
++    }
++    void addStatus(MonthlyInvoice invoice) {
++      if (invoice.isPaid) {
++        paid += 1;
++      } else if (invoice.isPartial) {
++        partial += 1;
++      } else {
++        unpaid += 1;
++      }
++    }
++    removeStatus(before);
++    addStatus(after);
++    return MonthlySummary(
++      readingCount: readingCount,
++      requiredPriceCount: requiredPriceCount,
++      priceCount: priceCount,
++      missingPriceCount: missingPriceCount,
++      invoiceCount: invoiceCount,
++      totalIqd: totalIqd,
++      paidIqd: paidIqd + paidDelta,
++      remainingIqd: remainingIqd + remainingDelta,
++      unpaidCount: unpaid,
++      partialCount: partial,
++      paidCount: paid,
++      canCreateInvoices: canCreateInvoices,
++    );
++  }
+ }
+ 
+ final class MonthlyWorkspace {
+@@ -250,6 +365,7 @@ final class MonthlyWorkspace {
+     required this.period,
+     required this.generators,
+     required this.invoices,
++    required this.pendingSubscribers,
+     required this.summary,
+   });
+ 
+@@ -263,13 +379,79 @@ final class MonthlyWorkspace {
+             .whereType<Map>()
+             .map((item) => MonthlyInvoice.fromJson(Map<String, dynamic>.from(item)))
+             .toList(growable: false),
++        pendingSubscribers: (json['pending_subscribers'] as List? ?? const [])
++            .whereType<Map>()
++            .map((item) => PendingBillingSubscriber.fromJson(Map<String, dynamic>.from(item)))
++            .toList(growable: false),
+         summary: MonthlySummary.fromJson(Map<String, dynamic>.from(json['summary'] as Map? ?? const {})),
+       );
+ 
+   final MonthlyPeriod period;
+   final List<MonthlyGeneratorPrice> generators;
+   final List<MonthlyInvoice> invoices;
++  final List<PendingBillingSubscriber> pendingSubscribers;
+   final MonthlySummary summary;
++
++  MonthlyWorkspace withPendingSubscribers(
++    List<PendingBillingSubscriber> subscribers,
++  ) =>
++      MonthlyWorkspace(
++        period: period,
++        generators: generators,
++        invoices: invoices,
++        pendingSubscribers: List.unmodifiable(subscribers),
++        summary: summary,
++      );
++
++  MonthlyWorkspace applyPayment(OwnerPaymentResult result) {
++    final index = invoices.indexWhere((item) => item.id == result.invoiceId);
++    if (index < 0) return this;
++    final before = invoices[index];
++    final after = before.applyPayment(result);
++    final updatedInvoices = invoices.toList(growable: true)..[index] = after;
++    return MonthlyWorkspace(
++      period: period,
++      generators: generators,
++      invoices: List.unmodifiable(updatedInvoices),
++      pendingSubscribers: pendingSubscribers,
++      summary: summary.applyPayment(before: before, after: after),
++    );
++  }
++}
++
++final class OwnerPaymentResult {
++  const OwnerPaymentResult({
++    required this.payment,
++    required this.invoiceId,
++    required this.paidAmountIqd,
++    required this.remainingAmountIqd,

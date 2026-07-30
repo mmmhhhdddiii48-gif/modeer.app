@@ -1,0 +1,101 @@
++          'remaining_amount_iqd': 100000,
++          'consumption': 0,
++          'payments': const [],
++        },
++      ],
++      'summary': {
++        'invoice_count': 1,
++        'total_iqd': 100000,
++        'paid_iqd': 0,
++        'remaining_iqd': 100000,
++        'unpaid_count': 1,
++      },
++    });
++    final result = OwnerPaymentResult.fromJson({
++      'duplicate': false,
++      'payment': {
++        'id': 'payment-1',
++        'receipt_number': 'REC-1',
++        'amount_iqd': 25000,
++        'payment_method': 'cash',
++        'created_at': '2026-07-30T00:00:00Z',
++      },
++      'invoice': {
++        'id': 'invoice-1',
++        'paid_amount_iqd': 25000,
++        'remaining_amount_iqd': 75000,
++        'status': 'partial',
++      },
++    });
++
++    final updated = workspace.applyPayment(result);
++    expect(updated.invoices.single.paidAmountIqd, 25000);
++    expect(updated.invoices.single.remainingAmountIqd, 75000);
++    expect(updated.invoices.single.payments.single.receiptNumber, 'REC-1');
++    expect(updated.summary.paidIqd, 25000);
++    expect(updated.summary.remainingIqd, 75000);
++    expect(updated.summary.unpaidCount, 0);
++    expect(updated.summary.partialCount, 1);
++  });
++}
+diff --git a/tests/generators_stage08_batch01_core_flow.test.js b/tests/generators_stage08_batch01_core_flow.test.js
+new file mode 100644
+index 0000000..154663b
+--- /dev/null
++++ b/tests/generators_stage08_batch01_core_flow.test.js
+@@ -0,0 +1,21 @@
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const path = require('node:path');
++const test = require('node:test');
++
++const root = path.resolve(__dirname, '..');
++const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
++
++test('Batch01 keeps subscriber enrichment inside the APK and updates payment state immediately', () => {
++  const billingPage = read('mobile/generators_mobile/lib/features/simple_billing/presentation/owner_simple_billing_page.dart');
++  const ownerHome = read('mobile/generators_mobile/lib/features/owner/presentation/owner_home_page.dart');
++  const models = read('mobile/generators_mobile/lib/features/simple_billing/domain/simple_billing_models.dart');
++
++  assert.match(billingPage, /domainRepository\.listSubscribers/);
++  assert.match(billingPage, /readingRepository\.getOwnerReadings/);
++  assert.match(billingPage, /withPendingSubscribers\(pending\)/);
++  assert.match(billingPage, /_workspace = _workspace\?\.applyPayment\(result\)/);
++  assert.match(ownerHome, /domainRepository: widget\.domainRepository/);
++  assert.match(ownerHome, /readingRepository: widget\.readingRepository/);
++  assert.match(models, /MonthlyWorkspace applyPayment\(OwnerPaymentResult result\)/);
++});
+diff --git a/tests/generators_stage08_batch01_mobile_contract.test.js b/tests/generators_stage08_batch01_mobile_contract.test.js
+new file mode 100644
+index 0000000..3f5ed2e
+--- /dev/null
++++ b/tests/generators_stage08_batch01_mobile_contract.test.js
+@@ -0,0 +1,28 @@
++const assert = require('node:assert/strict');
++const fs = require('node:fs');
++const path = require('node:path');
++const test = require('node:test');
++
++const root = path.resolve(__dirname, '..');
++const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
++
++test('Batch01 mobile contract updates subscriber and payment state without manual refresh', () => {
++  const subscribers = read('mobile/generators_mobile/lib/features/domain/presentation/domain_subscribers_tab.dart');
++  const billingPage = read('mobile/generators_mobile/lib/features/simple_billing/presentation/owner_simple_billing_page.dart');
++  const models = read('mobile/generators_mobile/lib/features/simple_billing/domain/simple_billing_models.dart');
++
++  assert.match(subscribers, /final saved = await widget\.repository\.saveSubscriber/);
++  assert.match(subscribers, /setState\(\(\) \{/);
++  assert.match(subscribers, /updated\.add\(saved\)/);
++  assert.doesNotMatch(
++    subscribers.slice(subscribers.indexOf('final saved = await'), subscribers.indexOf('Future<void> _status')),
++    /await _load\(\)/,
++  );
++
++  assert.match(billingPage, /_workspace = _workspace\?\.applyPayment\(result\)/);
++  assert.match(billingPage, /مشتركون بانتظار الفاتورة/);
++  assert.match(billingPage, /المبلغ المستحق حاليًا/);
++  assert.match(billingPage, /مبلغ الدفعة الآن/);
++  assert.match(models, /final class PendingBillingSubscriber/);
++  assert.match(models, /MonthlyWorkspace applyPayment\(OwnerPaymentResult result\)/);
++});
