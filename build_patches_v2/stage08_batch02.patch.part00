@@ -1,0 +1,144 @@
+diff --git a/docs/generators/STAGE08_BATCH02_REPORT.md b/docs/generators/STAGE08_BATCH02_REPORT.md
+new file mode 100644
+index 0000000..ffdbb08
+--- /dev/null
++++ b/docs/generators/STAGE08_BATCH02_REPORT.md
+@@ -0,0 +1,27 @@
++# تقرير Stage08 — Batch02
++
++## النسخة الأساسية
++
++- النسخة المقبولة يدويًا: `Nukhba_Generators_Stage08_Batch01_Source.zip`.
++- لم يتم الرجوع إلى نسخة محفوظة أو مرحلة أخرى.
++- لا تعديل على قاعدة البيانات أو حسابات الدفعات أو صلاحيات الجابي أو Render.
++
++## التعديلات الثلاثة فقط
++
++1. أزرار تعديل ظاهرة في بطاقات المولدات والمسارات والمشتركين والجباة، مع إبقاء تغيير الحالة منفصلًا.
++2. إظهار تاريخ إضافة المشترك من `created_at` الحقيقي، وإظهار تاريخ ووقت كل دفعة في نسخة المالك ونسخة الجابي من `payment.created_at`.
++3. تنبيهات الاستحقاق والمتأخرات داخل صفحة الفواتير:
++   - رصيد غير مسدد لشهر سابق = متأخر.
++   - رصيد غير مسدد للشهر الحالي = مستحق الآن.
++   - لا يوجد تاريخ استحقاق مصطنع أو قاعدة جديدة على السيرفر.
++
++## حماية التدفق
++
++- الدفعة ما زالت تخصم فورًا من الفاتورة والملخص.
++- تحديث تنبيهات الشهر يتم مباشرة بعد نجاح الدفعة.
++- لا إنشاء دين وهمي للمشترك الذي لم تصدر له فاتورة.
++- لم تبدأ الطباعة أو التفعيل أو الخروج أو حمل المولدة أو Render.
++
++## الإصدار
++
++- Flutter version: `0.8.2+9` ليثبت فوق الدفعة السابقة.
+diff --git a/mobile/generators_mobile/lib/core/utils/date_time_format.dart b/mobile/generators_mobile/lib/core/utils/date_time_format.dart
+new file mode 100644
+index 0000000..c1e237e
+--- /dev/null
++++ b/mobile/generators_mobile/lib/core/utils/date_time_format.dart
+@@ -0,0 +1,22 @@
++DateTime? parseServerDateTime(String? raw) {
++  final value = raw?.trim();
++  if (value == null || value.isEmpty) return null;
++  final normalized = value.contains('T') ? value : value.replaceFirst(' ', 'T');
++  final hasZone = normalized.endsWith('Z') ||
++      RegExp(r'[+-]\d{2}:?\d{2}$').hasMatch(normalized);
++  final parsed = DateTime.tryParse(hasZone ? normalized : '${normalized}Z');
++  return parsed?.toLocal();
++}
++
++String formatServerDateTime(String? raw) {
++  final value = parseServerDateTime(raw);
++  if (value == null) return 'غير متوفر';
++  final day = value.day.toString().padLeft(2, '0');
++  final month = value.month.toString().padLeft(2, '0');
++  final hour = value.hour.toString().padLeft(2, '0');
++  final minute = value.minute.toString().padLeft(2, '0');
++  return '$day/$month/${value.year} - $hour:$minute';
++}
++
++String monthKey(DateTime value) =>
++    '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}';
+diff --git a/mobile/generators_mobile/lib/features/domain/presentation/domain_generators_tab.dart b/mobile/generators_mobile/lib/features/domain/presentation/domain_generators_tab.dart
+index 9073acc..2e5c6e8 100644
+--- a/mobile/generators_mobile/lib/features/domain/presentation/domain_generators_tab.dart
++++ b/mobile/generators_mobile/lib/features/domain/presentation/domain_generators_tab.dart
+@@ -66,27 +66,42 @@ final class _GeneratorsTabState extends State<_GeneratorsTab> {
+       children: _items
+           .map(
+             (item) => Card(
+-              child: ListTile(
+-                leading: const CircleAvatar(
+-                  backgroundColor: AppTheme.teal,
+-                  child: Icon(Icons.electrical_services, color: Colors.black),
+-                ),
+-                title: Text(item.name),
+-                subtitle: Text(
+-                  '${item.code} • ${item.area ?? 'بدون منطقة'}\n'
+-                  '${item.routeCount} مسار • ${item.subscriberCount} مشترك • ${_statusLabel(item.status)}',
+-                ),
+-                isThreeLine: true,
+-                onTap: () => _edit(item),
+-                trailing: PopupMenuButton<String>(
+-                  onSelected: (value) => value == 'edit' ? _edit(item) : _status(item, value),
+-                  itemBuilder: (_) => const [
+-                    PopupMenuItem(value: 'edit', child: Text('تعديل')),
+-                    PopupMenuItem(value: 'active', child: Text('تفعيل')),
+-                    PopupMenuItem(value: 'maintenance', child: Text('صيانة')),
+-                    PopupMenuItem(value: 'inactive', child: Text('إيقاف')),
+-                  ],
+-                ),
++              child: Column(
++                children: [
++                  ListTile(
++                    leading: const CircleAvatar(
++                      backgroundColor: AppTheme.teal,
++                      child: Icon(Icons.electrical_services, color: Colors.black),
++                    ),
++                    title: Text(item.name),
++                    subtitle: Text(
++                      '${item.code} • ${item.area ?? 'بدون منطقة'}\n'
++                      '${item.routeCount} مسار • ${item.subscriberCount} مشترك • ${_statusLabel(item.status)}',
++                    ),
++                    isThreeLine: true,
++                    onTap: () => _edit(item),
++                    trailing: PopupMenuButton<String>(
++                      tooltip: 'تغيير الحالة',
++                      onSelected: (value) => _status(item, value),
++                      itemBuilder: (_) => const [
++                        PopupMenuItem(value: 'active', child: Text('تفعيل')),
++                        PopupMenuItem(value: 'maintenance', child: Text('صيانة')),
++                        PopupMenuItem(value: 'inactive', child: Text('إيقاف')),
++                      ],
++                    ),
++                  ),
++                  Padding(
++                    padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 10),
++                    child: Align(
++                      alignment: AlignmentDirectional.centerEnd,
++                      child: OutlinedButton.icon(
++                        onPressed: () => _edit(item),
++                        icon: const Icon(Icons.edit_outlined),
++                        label: const Text('تعديل'),
++                      ),
++                    ),
++                  ),
++                ],
+               ),
+             ),
+           )
+diff --git a/mobile/generators_mobile/lib/features/domain/presentation/domain_management_page.dart b/mobile/generators_mobile/lib/features/domain/presentation/domain_management_page.dart
+index ac8bda9..4817fd1 100644
+--- a/mobile/generators_mobile/lib/features/domain/presentation/domain_management_page.dart
++++ b/mobile/generators_mobile/lib/features/domain/presentation/domain_management_page.dart
+@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
+ import 'package:flutter/material.dart';
+ 
+ import '../../../core/theme/app_theme.dart';
++import '../../../core/utils/date_time_format.dart';
+ import '../data/domain_repository.dart';
+ import '../domain/generator_domain.dart';
+ 
+diff --git a/mobile/generators_mobile/lib/features/domain/presentation/domain_routes_tab.dart b/mobile/generators_mobile/lib/features/domain/presentation/domain_routes_tab.dart
+index 4883e95..d1ed8ca 100644
+--- a/mobile/generators_mobile/lib/features/domain/presentation/domain_routes_tab.dart
