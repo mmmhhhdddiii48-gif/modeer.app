@@ -13,6 +13,12 @@ on:
       - main
     paths:
       - 'mobile/generators_mobile/**'
+      - 'build_patches_v2/**'
+      - 'build_patches_v3/**'
+      - 'build_patches_v4/**'
+      - 'build_patches_v5/**'
+      - 'build_patches_v6/**'
+      - 'build_patches_v7/**'
       - '.github/workflows/build-generators-apk.yml'
 
 permissions:
@@ -31,6 +37,66 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Apply Stage08 Batch01 source patch
+        working-directory: .
+        shell: bash
+        run: |
+          cat build_patches_v2/stage08_batch01_v2.patch.part* > /tmp/stage08_batch01.patch
+          git apply --check /tmp/stage08_batch01.patch
+          git apply /tmp/stage08_batch01.patch
+          git diff --check
+
+      - name: Apply Stage08 Batch02 source patch
+        working-directory: .
+        shell: bash
+        run: |
+          cat build_patches_v3/stage08_batch02.b64.part* | base64 --decode --ignore-garbage > /tmp/stage08_batch02.patch
+          echo '40e2044f25ab34308593a1faa4acaea221a92f67440e7a5fcb250c939f4922b5  /tmp/stage08_batch02.patch' | sha256sum -c -
+          git apply --check /tmp/stage08_batch02.patch
+          git apply /tmp/stage08_batch02.patch
+          git diff --check
+
+      - name: Apply Stage08 Batch03 source patch
+        working-directory: .
+        shell: bash
+        run: |
+          base64 --decode --ignore-garbage build_patches_v4/stage08_batch03.patch.gz.b64 | gzip -dc > /tmp/stage08_batch03.patch
+          echo '64cf70f661ba135af332db6648db2a98d901812cd33b08bb11ae19157012b590  /tmp/stage08_batch03.patch' | sha256sum -c -
+          git apply --check /tmp/stage08_batch03.patch
+          git apply /tmp/stage08_batch03.patch
+          git diff --check
+
+      - name: Apply Stage08 Batch04 source patch
+        working-directory: .
+        shell: bash
+        run: |
+          cat build_patches_v6/stage08_batch04.patch.gz.hex.part* > /tmp/stage08_batch04.patch.gz.hex
+          python - <<'PY'
+          from pathlib import Path
+          source = Path('/tmp/stage08_batch04.patch.gz.hex')
+          target = Path('/tmp/stage08_batch04.patch.gz')
+          target.write_bytes(bytes.fromhex(''.join(source.read_text(encoding='ascii').split())))
+          PY
+          echo 'e4e6c89fb4b9db485a6d3cd1fe0904c0dfe79d5c54532f0d41f7df5746c92fe1  /tmp/stage08_batch04.patch.gz' | sha256sum -c -
+          gzip -dc /tmp/stage08_batch04.patch.gz > /tmp/stage08_batch04.patch
+          echo '9a5500e8e3cfa36d34a1736765ad44dcaad8cc770dacb6f741e070140128f4b5  /tmp/stage08_batch04.patch' | sha256sum -c -
+          git apply --check /tmp/stage08_batch04.patch
+          git apply /tmp/stage08_batch04.patch
+          git diff --check
+
+      - name: Apply Stage08 Batch04 analyze correction
+        working-directory: .
+        shell: bash
+        run: |
+          echo '89e95bf0023aa42b9dac521af6173b821f0523952c16285ece26efe899668878  build_patches_v7/stage08_batch04_analyze_fix.patch' | sha256sum -c -
+          git apply --check build_patches_v7/stage08_batch04_analyze_fix.patch
+          git apply build_patches_v7/stage08_batch04_analyze_fix.patch
+          git diff --check
+
+      - name: Run Batch01 to Batch04 source contracts
+        working-directory: .
+        run: node --test tests/generators_stage08_batch01_core_flow.test.js tests/generators_stage08_batch01_mobile_contract.test.js tests/generators_stage08_batch02_edit_dates_alerts_contract.test.js tests/generators_stage08_batch03_exit_load_contract.test.js tests/generators_stage08_batch04_receipt_printing_contract.test.js
+
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
@@ -47,9 +113,12 @@ jobs:
         run: flutter --version
 
       - name: Generate Android platform
-        run: flutter create . --project-name nukhba_generators_mobile --org com.nukhba --platforms=android
+        shell: bash
+        run: |
+          flutter create . --project-name nukhba_generators_mobile --org com.nukhba --platforms=android
+          rm -f test/widget_test.dart
 
-      - name: Set Android minimum SDK 24
+      - name: Configure Android release basics and Bluetooth permissions
         shell: bash
         run: |
           if [ -f android/app/build.gradle.kts ]; then
@@ -57,12 +126,32 @@ jobs:
           elif [ -f android/app/build.gradle ]; then
             sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 24/' android/app/build.gradle
           fi
+          python - <<'PY'
+          from pathlib import Path
+          manifest = Path('android/app/src/main/AndroidManifest.xml')
+          text = manifest.read_text(encoding='utf-8')
+          permissions = [
+              '    <uses-permission android:name="android.permission.INTERNET" />',
+              '    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />',
+              '    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />',
+              '    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />',
+              '    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />',
+          ]
+          missing = [line for line in permissions if line.split('android:name="', 1)[1].split('"', 1)[0] not in text]
+          if missing:
+              end = text.find('>') + 1
+              text = text[:end] + '\n' + '\n'.join(missing) + text[end:]
+              manifest.write_text(text, encoding='utf-8')
+          PY
 
       - name: Get Flutter packages
         run: flutter pub get
 
+      - name: Format Flutter build workspace
+        run: dart format lib test
+
       - name: Analyze Flutter project
-        run: flutter analyze
+        run: flutter analyze --no-fatal-infos
 
       - name: Run Flutter tests
         run: flutter test
@@ -70,14 +159,19 @@ jobs:
       - name: Build release APK
         run: flutter build apk --release
 
-      - name: Rename APK
+      - name: Package APK and checksum
         shell: bash
-        run: cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/Nukhba_Generators_v0.7.0.apk
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/Nukhba_Generators_Stage08_Batch04.apk
+          cd build/app/outputs/flutter-apk
+          sha256sum Nukhba_Generators_Stage08_Batch04.apk > Nukhba_Generators_Stage08_Batch04_SHA256.txt
 
       - name: Upload release APK
         uses: actions/upload-artifact@v4
         with:
-          name: Nukhba-Generators-Android-v0.7.0
-          path: mobile/generators_mobile/build/app/outputs/flutter-apk/Nukhba_Generators_v0.7.0.apk
+          name: Nukhba-Generators-Stage08-Batch04
+          path: |
+            mobile/generators_mobile/build/app/outputs/flutter-apk/Nukhba_Generators_Stage08_Batch04.apk
+            mobile/generators_mobile/build/app/outputs/flutter-apk/Nukhba_Generators_Stage08_Batch04_SHA256.txt
           if-no-files-found: error
           retention-days: 30

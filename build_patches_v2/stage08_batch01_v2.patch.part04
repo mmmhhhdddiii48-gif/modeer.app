@@ -1,0 +1,117 @@
++    if (created == null || periodKey.length < 7) return true;
++    final createdKey =
++        '${created.year.toString().padLeft(4, '0')}-${created.month.toString().padLeft(2, '0')}';
++    return createdKey.compareTo(periodKey.substring(0, 7)) <= 0;
++  }
++
+   Future<void> _selectPeriod(MonthlyPeriod? value) async {
+     if (value == null) return;
+     setState(() {
+@@ -149,15 +204,18 @@ final class _OwnerSimpleBillingPageState extends State<OwnerSimpleBillingPage> {
+     if (input == null || !mounted) return;
+     setState(() => _working = true);
+     try {
+-      final payment = await widget.repository.recordPayment(
++      final result = await widget.repository.recordPayment(
+         invoiceId: invoice.id,
+         amountIqd: input.amount,
+         paymentMethod: input.method,
+         note: input.note,
+       );
+-      _show('تم تسجيل الدفعة. رقم الوصل: ${payment.receiptNumber}');
+-      await _loadWorkspace();
+-      await _loadPeriods();
++      if (!mounted) return;
++      setState(() => _workspace = _workspace?.applyPayment(result));
++      _show(
++        'تم تسجيل الدفعة. رقم الوصل: ${result.payment.receiptNumber} — '
++        'المتبقي: ${_money(result.remainingAmountIqd)} د.ع',
++      );
+     } on DioException catch (error) {
+       _show(_apiMessage(error));
+     } finally {
+@@ -273,6 +331,20 @@ final class _OwnerSimpleBillingPageState extends State<OwnerSimpleBillingPage> {
+           label: Text(summary.invoiceCount > 0 ? 'الفواتير منشأة' : 'إنشاء فواتير الشهر'),
+         ),
+         const SizedBox(height: 18),
++        if (workspace.pendingSubscribers.isNotEmpty) ...[
++          Text(
++            'مشتركون بانتظار الفاتورة',
++            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
++          ),
++          const SizedBox(height: 8),
++          ...workspace.pendingSubscribers.map(
++            (subscriber) => Padding(
++              padding: const EdgeInsets.only(bottom: 8),
++              child: _PendingSubscriberCard(subscriber: subscriber),
++            ),
++          ),
++          const SizedBox(height: 10),
++        ],
+         Text('فواتير المشتركين', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
+         const SizedBox(height: 8),
+         if (workspace.invoices.isEmpty)
+@@ -293,6 +365,45 @@ final class _OwnerSimpleBillingPageState extends State<OwnerSimpleBillingPage> {
+   }
+ }
+ 
++final class _PendingSubscriberCard extends StatelessWidget {
++  const _PendingSubscriberCard({required this.subscriber});
++
++  final PendingBillingSubscriber subscriber;
++
++  @override
++  Widget build(BuildContext context) {
++    return Card(
++      child: Padding(
++        padding: const EdgeInsets.all(14),
++        child: Column(
++          crossAxisAlignment: CrossAxisAlignment.start,
++          children: [
++            Row(
++              children: [
++                const CircleAvatar(child: Icon(Icons.person_add_alt_1_outlined)),
++                const SizedBox(width: 10),
++                Expanded(
++                  child: Text(
++                    subscriber.fullName,
++                    style: const TextStyle(fontWeight: FontWeight.w900),
++                  ),
++                ),
++              ],
++            ),
++            const SizedBox(height: 8),
++            Text(
++              'حساب ${subscriber.accountNumber} • ${subscriber.generatorName}\n'
++              '${subscriber.routeName ?? 'بدون مسار'} • ${subscriber.contractedAmperes} أمبير',
++            ),
++            const SizedBox(height: 8),
++            Chip(label: Text(subscriber.billingStateLabel)),
++          ],
++        ),
++      ),
++    );
++  }
++}
++
+ final class _InvoiceCard extends StatelessWidget {
+   const _InvoiceCard({
+     required this.invoice,
+@@ -344,13 +455,35 @@ final class _InvoiceCard extends StatelessWidget {
+               children: [
+                 Text('الإجمالي: ${_money(invoice.amountIqd)}'),
+                 Text('المدفوع: ${_money(invoice.paidAmountIqd)}'),
+-                Text(
+-                  'المتبقي: ${_money(invoice.remainingAmountIqd)}',
+-                  style: const TextStyle(fontWeight: FontWeight.w900),
+-                ),
+               ],
+             ),
+             const SizedBox(height: 10),
++            Container(
++              width: double.infinity,
++              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
++              decoration: BoxDecoration(
++                color: invoice.isPaid
++                    ? AppTheme.teal.withValues(alpha: 0.10)
++                    : AppTheme.orange.withValues(alpha: 0.12),

@@ -1,0 +1,12 @@
+diff --git a/mobile/generators_mobile/lib/features/simple_billing/presentation/collector_payments_page.dart b/mobile/generators_mobile/lib/features/simple_billing/presentation/collector_payments_page.dart
+--- a/mobile/generators_mobile/lib/features/simple_billing/presentation/collector_payments_page.dart
++++ b/mobile/generators_mobile/lib/features/simple_billing/presentation/collector_payments_page.dart
+@@ -83,7 +83,7 @@ final class _CollectorPaymentsPageState extends State<CollectorPaymentsPage> {
+         note: input.note,
+       );
+       if (!mounted) return;
+-      final updatedInvoice = invoice.applyPayment(result);
++      final updatedInvoice = invoice.applyCollectorPayment(result);
+       setState(() {
+         final current = _workspace;
+         if (current != null) _workspace = current.applyPayment(result);
