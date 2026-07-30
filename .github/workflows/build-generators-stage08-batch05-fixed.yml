@@ -1,0 +1,51 @@
+name: Build Generators Stage08 Batch05 Fixed
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'scripts/build_generators_stage08_batch05_variants.sh'
+      - 'build_patches_v10/**'
+      - '.github/workflows/build-generators-stage08-batch05-fixed.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-owner-and-collector:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Build and verify Owner and Collector APKs
+        shell: bash
+        run: bash scripts/build_generators_stage08_batch05_variants.sh
+
+      - name: Upload Stage08 Batch05 APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nukhba-Generators-Stage08-Batch05-Fixed
+          path: |
+            mobile/generators_mobile/release/stage08_batch05/Nukhba_Generators_Owner_Stage08_Batch05.apk
+            mobile/generators_mobile/release/stage08_batch05/Nukhba_Generators_Collector_Stage08_Batch05.apk
+            mobile/generators_mobile/release/stage08_batch05/Nukhba_Generators_Owner_Stage08_Batch05_SHA256.txt
+            mobile/generators_mobile/release/stage08_batch05/Nukhba_Generators_Collector_Stage08_Batch05_SHA256.txt
+            mobile/generators_mobile/release/stage08_batch05/Nukhba_Generators_Stage08_Batch05_All_SHA256.txt
+          if-no-files-found: error
+          retention-days: 30
