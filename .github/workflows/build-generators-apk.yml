@@ -61,7 +61,10 @@ jobs:
         run: flutter --version
 
       - name: Generate Android platform
-        run: flutter create . --project-name nukhba_generators_mobile --org com.nukhba --platforms=android
+        shell: bash
+        run: |
+          flutter create . --project-name nukhba_generators_mobile --org com.nukhba --platforms=android
+          rm -f test/widget_test.dart
 
       - name: Configure Android release basics
         shell: bash
