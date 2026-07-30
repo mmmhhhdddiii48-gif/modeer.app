@@ -15,6 +15,7 @@ on:
       - 'mobile/generators_mobile/**'
       - 'build_patches_v2/**'
       - 'build_patches_v3/**'
+      - 'build_patches_v4/**'
       - '.github/workflows/build-generators-apk.yml'
 
 permissions:
@@ -52,9 +53,19 @@ jobs:
           git apply /tmp/stage08_batch02.patch
           git diff --check
 
-      - name: Run Batch01 and Batch02 source contracts
+      - name: Apply Stage08 Batch03 source patch
         working-directory: .
-        run: node --test tests/generators_stage08_batch01_core_flow.test.js tests/generators_stage08_batch01_mobile_contract.test.js tests/generators_stage08_batch02_edit_dates_alerts_contract.test.js
+        shell: bash
+        run: |
+          base64 --decode --ignore-garbage build_patches_v4/stage08_batch03.patch.gz.b64 | gzip -dc > /tmp/stage08_batch03.patch
+          echo '64cf70f661ba135af332db6648db2a98d901812cd33b08bb11ae19157012b590  /tmp/stage08_batch03.patch' | sha256sum -c -
+          git apply --check /tmp/stage08_batch03.patch
+          git apply /tmp/stage08_batch03.patch
+          git diff --check
+
+      - name: Run Batch01 to Batch03 source contracts
+        working-directory: .
+        run: node --test tests/generators_stage08_batch01_core_flow.test.js tests/generators_stage08_batch01_mobile_contract.test.js tests/generators_stage08_batch02_edit_dates_alerts_contract.test.js tests/generators_stage08_batch03_exit_load_contract.test.js
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
@@ -108,16 +119,16 @@ jobs:
       - name: Package APK and checksum
         shell: bash
         run: |
-          cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/Nukhba_Generators_Stage08_Batch02.apk
+          cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/Nukhba_Generators_Stage08_Batch03.apk
           cd build/app/outputs/flutter-apk
-          sha256sum Nukhba_Generators_Stage08_Batch02.apk > Nukhba_Generators_Stage08_Batch02_SHA256.txt
+          sha256sum Nukhba_Generators_Stage08_Batch03.apk > Nukhba_Generators_Stage08_Batch03_SHA256.txt
 
       - name: Upload release APK
         uses: actions/upload-artifact@v4
         with:
-          name: Nukhba-Generators-Stage08-Batch02
+          name: Nukhba-Generators-Stage08-Batch03
           path: |
-            mobile/generators_mobile/build/app/outputs/flutter-apk/Nukhba_Generators_Stage08_Batch02.apk
-            mobile/generators_mobile/build/app/outputs/flutter-apk/Nukhba_Generators_Stage08_Batch02_SHA256.txt
+            mobile/generators_mobile/build/app/outputs/flutter-apk/Nukhba_Generators_Stage08_Batch03.apk
+            mobile/generators_mobile/build/app/outputs/flutter-apk/Nukhba_Generators_Stage08_Batch03_SHA256.txt
           if-no-files-found: error
           retention-days: 30
