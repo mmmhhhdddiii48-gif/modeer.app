@@ -1,0 +1,24 @@
+od.id, auth.tenantId);
+   const stateByInvoice = new Map(invoiceRows.map((row) => [row.public_id, row]));
+   const invoices = (workspace.invoices || []).map((invoice) => {
+     const state = stateByInvoice.get(invoice.id);
+@@ -122,6 +138,19 @@ function enrichOwnerMonthlyWorkspace(auth, workspace, periodPublicId) {
+   return {
+     ...workspace,
+     invoices,
++    pending_subscribers: pendingSubscriberRows.map((row) => ({
++      id: row.id,
++      account_number: row.account_number,
++      full_name: row.full_name,
++      phone: row.phone || null,
++      area: row.area || null,
++      meter_number: row.meter_number || null,
++      contracted_amperes: Number(row.contracted_amperes || 0),
++      generator_name: row.generator_name,
++      route_name: row.route_name || null,
++      has_reading: Boolean(row.has_reading),
++      created_at: row.created_at
++    })),
+     summary: {
+       ...workspace.summary,
+       total_iqd: totalIqd,
