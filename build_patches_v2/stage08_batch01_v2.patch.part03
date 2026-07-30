@@ -1,0 +1,113 @@
++    required this.status,
++    required this.duplicate,
++    this.lastPaymentAt,
++  });
++
++  factory OwnerPaymentResult.fromJson(Map<String, dynamic> json) {
++    final invoice = Map<String, dynamic>.from(json['invoice'] as Map? ?? const {});
++    return OwnerPaymentResult(
++      payment: InvoicePayment.fromJson(
++        Map<String, dynamic>.from(json['payment'] as Map? ?? const {}),
++      ),
++      invoiceId: invoice['id']?.toString() ?? '',
++      paidAmountIqd: _int(invoice['paid_amount_iqd']),
++      remainingAmountIqd: _int(invoice['remaining_amount_iqd']),
++      status: invoice['status']?.toString() ?? 'unpaid',
++      lastPaymentAt: invoice['last_payment_at']?.toString(),
++      duplicate: json['duplicate'] == true,
++    );
++  }
++
++  final InvoicePayment payment;
++  final String invoiceId;
++  final int paidAmountIqd;
++  final int remainingAmountIqd;
++  final String status;
++  final String? lastPaymentAt;
++  final bool duplicate;
+ }
+ 
+ final class CollectorCollectionsSummary {
+diff --git a/mobile/generators_mobile/lib/features/simple_billing/presentation/owner_simple_billing_page.dart b/mobile/generators_mobile/lib/features/simple_billing/presentation/owner_simple_billing_page.dart
+index 6c49758..f68c784 100644
+--- a/mobile/generators_mobile/lib/features/simple_billing/presentation/owner_simple_billing_page.dart
++++ b/mobile/generators_mobile/lib/features/simple_billing/presentation/owner_simple_billing_page.dart
+@@ -2,17 +2,25 @@ import 'package:dio/dio.dart';
+ import 'package:flutter/material.dart';
+ 
+ import '../../../core/theme/app_theme.dart';
++import '../../domain/data/domain_repository.dart';
++import '../../readings/data/reading_repository.dart';
+ import '../data/simple_billing_repository.dart';
+ import '../domain/simple_billing_models.dart';
+ 
+ final class OwnerSimpleBillingPage extends StatefulWidget {
+   const OwnerSimpleBillingPage({
+     required this.repository,
++    required this.domainRepository,
++    required this.readingRepository,
++    required this.tenantId,
+     required this.online,
+     super.key,
+   });
+ 
+   final SimpleBillingRepository repository;
++  final DomainRepository domainRepository;
++  final ReadingRepository readingRepository;
++  final String tenantId;
+   final bool online;
+ 
+   @override
+@@ -58,13 +66,60 @@ final class _OwnerSimpleBillingPageState extends State<OwnerSimpleBillingPage> {
+     final selected = _selected;
+     if (selected == null) return;
+     try {
+-      final workspace = await widget.repository.getWorkspace(selected.id);
++      var workspace = await widget.repository.getWorkspace(selected.id);
++      try {
++        final subscribers = await widget.domainRepository.listSubscribers(widget.tenantId);
++        final readings = await widget.readingRepository.getOwnerReadings(selected.id);
++        final invoicedAccounts = workspace.invoices
++            .map((item) => item.accountNumber)
++            .where((value) => value.isNotEmpty)
++            .toSet();
++        final readAccounts = readings.readings
++            .map((item) => item.accountNumber)
++            .where((value) => value.isNotEmpty)
++            .toSet();
++        final pendingById = <String, PendingBillingSubscriber>{
++          for (final item in workspace.pendingSubscribers) item.id: item,
++        };
++        for (final subscriber in subscribers.items) {
++          if (!subscriber.isActive ||
++              invoicedAccounts.contains(subscriber.accountNumber) ||
++              !_subscriberExistedInPeriod(subscriber.createdAt, selected.periodKey)) {
++            continue;
++          }
++          pendingById[subscriber.id] = PendingBillingSubscriber(
++            id: subscriber.id,
++            accountNumber: subscriber.accountNumber,
++            fullName: subscriber.fullName,
++            phone: subscriber.phone,
++            area: subscriber.area,
++            routeName: subscriber.route?.name,
++            meterNumber: subscriber.meterNumber,
++            generatorName: subscriber.generator.name,
++            contractedAmperes: subscriber.contractedAmperes,
++            hasReading: readAccounts.contains(subscriber.accountNumber),
++          );
++        }
++        final pending = pendingById.values.toList(growable: false)
++          ..sort((a, b) => a.fullName.compareTo(b.fullName));
++        workspace = workspace.withPendingSubscribers(pending);
++      } catch (_) {
++        // The invoice workspace remains usable if optional subscriber enrichment fails.
++      }
+       if (mounted) setState(() => _workspace = workspace);
+     } on DioException catch (error) {
+       _show(_apiMessage(error));
+     }
+   }
+ 
++  bool _subscriberExistedInPeriod(String? createdAt, String periodKey) {
++    final created = createdAt == null ? null : DateTime.tryParse(createdAt);
