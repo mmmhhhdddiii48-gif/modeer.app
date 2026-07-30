@@ -1,0 +1,109 @@
++        tenantId: widget.tenantId,
++        id: current?.id,
++        input: input,
++      );
++      if (!mounted) return;
++      setState(() {
++        final updated = _items.toList(growable: true);
++        final index = updated.indexWhere((item) => item.id == saved.id);
++        if (index < 0) {
++          updated.add(saved);
++        } else {
++          updated[index] = saved;
++        }
++        updated.sort((a, b) {
++          final aActive = a.isActive ? 0 : 1;
++          final bActive = b.isActive ? 0 : 1;
++          if (aActive != bActive) return aActive.compareTo(bActive);
++          return a.fullName.compareTo(b.fullName);
++        });
++        _items = List.unmodifiable(updated);
++      });
++      _message(context, current == null ? 'تمت إضافة المشترك وظهر مباشرة.' : 'تم تعديل المشترك.');
+     } on DioException catch (error) {
+       _message(context, _apiMessage(error));
+     }
+diff --git a/mobile/generators_mobile/lib/features/owner/presentation/owner_home_page.dart b/mobile/generators_mobile/lib/features/owner/presentation/owner_home_page.dart
+index 87730eb..05a4f9f 100644
+--- a/mobile/generators_mobile/lib/features/owner/presentation/owner_home_page.dart
++++ b/mobile/generators_mobile/lib/features/owner/presentation/owner_home_page.dart
+@@ -220,6 +220,9 @@ final class _OwnerHomePageState extends State<OwnerHomePage> {
+       MaterialPageRoute<void>(
+         builder: (_) => OwnerSimpleBillingPage(
+           repository: widget.simpleBillingRepository,
++          domainRepository: widget.domainRepository,
++          readingRepository: widget.readingRepository,
++          tenantId: widget.session.tenantId,
+           online: widget.online,
+         ),
+       ),
+diff --git a/mobile/generators_mobile/lib/features/simple_billing/data/simple_billing_repository.dart b/mobile/generators_mobile/lib/features/simple_billing/data/simple_billing_repository.dart
+index 764a048..9f45b6d 100644
+--- a/mobile/generators_mobile/lib/features/simple_billing/data/simple_billing_repository.dart
++++ b/mobile/generators_mobile/lib/features/simple_billing/data/simple_billing_repository.dart
+@@ -34,7 +34,7 @@ final class SimpleBillingRepository {
+ 
+   Future<void> createInvoices(String periodId) => _api.createInvoices(periodId);
+ 
+-  Future<InvoicePayment> recordPayment({
++  Future<OwnerPaymentResult> recordPayment({
+     required String invoiceId,
+     required int amountIqd,
+     required String paymentMethod,
+@@ -47,9 +47,7 @@ final class SimpleBillingRepository {
+       paymentMethod: paymentMethod,
+       note: note,
+     );
+-    return InvoicePayment.fromJson(
+-      Map<String, dynamic>.from(data['payment'] as Map? ?? const {}),
+-    );
++    return OwnerPaymentResult.fromJson(data);
+   }
+ 
+   Future<CollectorCollectionsWorkspace> getCollectorInvoices({String? query}) async =>
+diff --git a/mobile/generators_mobile/lib/features/simple_billing/domain/simple_billing_models.dart b/mobile/generators_mobile/lib/features/simple_billing/domain/simple_billing_models.dart
+index 7491b2c..e90f1b6 100644
+--- a/mobile/generators_mobile/lib/features/simple_billing/domain/simple_billing_models.dart
++++ b/mobile/generators_mobile/lib/features/simple_billing/domain/simple_billing_models.dart
+@@ -198,6 +198,76 @@ final class MonthlyInvoice {
+   bool get isPaid => status == 'paid' || remainingAmountIqd <= 0;
+   bool get isPartial => status == 'partial';
+   String get statusLabel => isPaid ? 'مسددة' : isPartial ? 'جزئي' : 'غير مسددة';
++
++  MonthlyInvoice applyPayment(OwnerPaymentResult result) {
++    if (result.invoiceId != id) return this;
++    final existingPayment = payments.any((item) => item.id == result.payment.id);
++    return MonthlyInvoice(
++      id: id,
++      invoiceNumber: invoiceNumber,
++      status: result.status,
++      subscriberName: subscriberName,
++      accountNumber: accountNumber,
++      periodKey: periodKey,
++      phone: phone,
++      area: area,
++      routeName: routeName,
++      meterNumber: meterNumber,
++      generatorName: generatorName,
++      contractedAmperes: contractedAmperes,
++      pricePerAmpIqd: pricePerAmpIqd,
++      fixedFeeIqd: fixedFeeIqd,
++      amountIqd: amountIqd,
++      paidAmountIqd: result.paidAmountIqd,
++      remainingAmountIqd: result.remainingAmountIqd,
++      consumption: consumption,
++      lastPaymentAt: result.lastPaymentAt,
++      payments: existingPayment ? payments : List.unmodifiable([result.payment, ...payments]),
++    );
++  }
++}
++
++final class PendingBillingSubscriber {
++  const PendingBillingSubscriber({
++    required this.id,
++    required this.accountNumber,
++    required this.fullName,
++    required this.generatorName,
++    required this.contractedAmperes,
++    required this.hasReading,
++    this.phone,
