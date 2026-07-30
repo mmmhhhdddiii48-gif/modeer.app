@@ -3,247 +3,160 @@ new file mode 100644
 index 0000000..bdae944
 --- /dev/null
 +++ b/STAGE08_BATCH02_REPORT.txt
-@@ -0,0 +1,27 @@
-+Nukhba Generators — Stage08 Batch02 Report
+@@ -0,0 +1,33 @@
++تقرير الدفعة الثانية — نسخة النخبة للمولدات والجباية
++=====================================================
 +
-+Accepted base:
-+- Nukhba Generators Stage08 Batch01 accepted by the owner.
-+- This batch keeps the existing calculations, server URL, storage, authentication, and collector restrictions unchanged.
++القاعدة المقبولة
++----------------
++Nukhba_Generators_Stage08_Batch01_Source.zip بعد قبول المستخدم للدفعة الأولى بكلمة «تم».
 +
-+Exactly three implemented changes:
-+1. Added clear edit buttons to generator, route, and subscriber cards that need editing.
-+2. Displayed subscriber creation date and invoice/payment date and time from the server's existing created_at fields.
-+3. Added visible payment alerts that distinguish current-month dues from unpaid invoices belonging to older months.
++التعديلات المنفذة — 3 فقط
++-------------------------
++1) أزرار تعديل واضحة:
++- زر تعديل ظاهر داخل بطاقات المولدات.
++- زر تعديل ظاهر داخل بطاقات المسارات.
++- زر تعديل ظاهر داخل بطاقات المشتركين.
++- بقي تغيير الحالة منفصلًا ولم تتغير صلاحيات أو حسابات.
 +
-+Important boundaries:
-+- No Render deployment or backend schema change.
-+- No printing, PDF, activation, login, branding, generator load, or collector APK work.
-+- No invented due day. Current month is classified as due now; older unpaid months are overdue.
-+- No accounting formulas, payment validation, invoice totals, or remaining balance calculations were changed.
++2) تسجيل وإظهار التواريخ:
++- إظهار تاريخ إضافة المشترك من created_at المسجل أصلًا على السيرفر.
++- إظهار تاريخ إنشاء الفاتورة.
++- إظهار تاريخ ووقت تسديد كل دفعة لدى صاحب المولدة والجابي.
++- عرض التاريخ والوقت بصيغة عربية واضحة اعتمادًا على وقت الجهاز المحلي.
 +
-+Verification:
-+- Explicit edit buttons are present and call the existing edit dialogs.
-+- Subscriber creation dates use the server created_at field.
-+- Payment and invoice timestamps use the server created_at field.
-+- Current-month unpaid invoices are labelled due now.
-+- Older unpaid invoices are labelled overdue.
-+- Paid invoices are excluded from due and overdue counts.
++3) تنبيهات الاستحقاق والمتأخرات:
++- بطاقة تنبيه أعلى صفحة الفواتير تعرض مستحق الشهر الحالي.
++- أي رصيد غير مسدد لفترة أقدم من الشهر الحالي يظهر كمتأخرات.
++- بطاقات الفواتير تعرض شارة «مستحق هذا الشهر» أو «متأخر».
++- لا يوجد تاريخ استحقاق اصطناعي أو قاعدة أيام مخترعة؛ التصنيف يعتمد على شهر الفاتورة فقط.
 +
-+Delivery gate:
-+- Stop after this batch and wait for owner manual acceptance.
++الحدود
++------
++- لم تتغير معادلات الفواتير أو الدفعات أو المتبقي.
++- لم يتم نشر Backend أو تعديل Render.
++- لم تتم إضافة الطباعة أو PDF أو التفعيل أو نسخة الجابي المستقلة.
++- لم يتم تنفيذ أي تعديل رابع.
 diff --git a/mobile/generators_mobile/lib/core/formatters/date_time_formatter.dart b/mobile/generators_mobile/lib/core/formatters/date_time_formatter.dart
 new file mode 100644
-index 0000000..a43f841
+index 0000000..5a1a771
 --- /dev/null
 +++ b/mobile/generators_mobile/lib/core/formatters/date_time_formatter.dart
-@@ -0,0 +1,44 @@
+@@ -0,0 +1,17 @@
 +String formatAppDateTime(String? raw) {
-+  final value = _parseDateTime(raw);
-+  if (value == null) return 'غير متوفر';
-+  final local = value.toLocal();
-+  return '${_two(local.day)}/${_two(local.month)}/${local.year} '
-+      '${_two(local.hour)}:${_two(local.minute)}';
++  if (raw == null || raw.trim().isEmpty) return 'غير مسجل';
++  final parsed = DateTime.tryParse(raw.trim());
++  if (parsed == null) return raw;
++  final value = parsed.toLocal();
++  return '${_two(value.day)}/${_two(value.month)}/${value.year} - ${_two(value.hour)}:${_two(value.minute)}';
 +}
 +
 +String formatAppDate(String? raw) {
-+  final value = _parseDateTime(raw);
-+  if (value == null) return 'غير متوفر';
-+  final local = value.toLocal();
-+  return '${_two(local.day)}/${_two(local.month)}/${local.year}';
-+}
-+
-+DateTime? _parseDateTime(String? raw) {
-+  final trimmed = raw?.trim();
-+  if (trimmed == null || trimmed.isEmpty) return null;
-+  return DateTime.tryParse(trimmed);
++  if (raw == null || raw.trim().isEmpty) return 'غير مسجل';
++  final parsed = DateTime.tryParse(raw.trim());
++  if (parsed == null) return raw;
++  final value = parsed.toLocal();
++  return '${_two(value.day)}/${_two(value.month)}/${value.year}';
 +}
 +
 +String _two(int value) => value.toString().padLeft(2, '0');
 diff --git a/mobile/generators_mobile/lib/features/domain/presentation/domain_generators_tab.dart b/mobile/generators_mobile/lib/features/domain/presentation/domain_generators_tab.dart
-index b899bb0..1b3cbb5 100644
+index 9073acc..ee0a570 100644
 --- a/mobile/generators_mobile/lib/features/domain/presentation/domain_generators_tab.dart
 +++ b/mobile/generators_mobile/lib/features/domain/presentation/domain_generators_tab.dart
-@@ -122,6 +122,13 @@ final class _GeneratorsTabState extends State<_GeneratorsTab> {
-                       const SizedBox(width: 8),
-                       Text('${item.capacityAmperes} أمبير'),
-                       const Spacer(),
-+                      IconButton(
-+                        tooltip: 'تعديل المولدة',
-+                        onPressed: () => _save(item),
-+                        icon: const Icon(Icons.edit_outlined),
-+                      ),
-+                      const SizedBox(width: 4),
-                       PopupMenuButton<String>(
-                         tooltip: 'خيارات المولدة',
-                         onSelected: (value) async {
-diff --git a/mobile/generators_mobile/lib/features/domain/presentation/domain_management_page.dart b/mobile/generators_mobile/lib/features/domain/presentation/domain_management_page.dart
-index dc5c038..ad2463f 100644
---- a/mobile/generators_mobile/lib/features/domain/presentation/domain_management_page.dart
-+++ b/mobile/generators_mobile/lib/features/domain/presentation/domain_management_page.dart
-@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
- import '../../../core/theme/app_theme.dart';
- import '../data/domain_repository.dart';
- import '../domain/generator_domain.dart';
-+import '../../../core/formatters/date_time_formatter.dart';
- 
- part 'domain_generator_dialog.dart';
- part 'domain_generators_tab.dart';
-diff --git a/mobile/generators_mobile/lib/features/domain/presentation/domain_routes_tab.dart b/mobile/generators_mobile/lib/features/domain/presentation/domain_routes_tab.dart
-index 0bd5cf4..188bd7d 100644
---- a/mobile/generators_mobile/lib/features/domain/presentation/domain_routes_tab.dart
-+++ b/mobile/generators_mobile/lib/features/domain/presentation/domain_routes_tab.dart
-@@ -129,6 +129,13 @@ final class _RoutesTabState extends State<_RoutesTab> {
-                       const SizedBox(width: 8),
-                       Text('${item.subscriberCount} مشترك'),
-                       const Spacer(),
-+                      IconButton(
-+                        tooltip: 'تعديل المسار',
-+                        onPressed: () => _save(item),
-+                        icon: const Icon(Icons.edit_outlined),
-+                      ),
-+                      const SizedBox(width: 4),
-                       PopupMenuButton<String>(
-                         tooltip: 'خيارات المسار',
-                         onSelected: (value) async {
-diff --git a/mobile/generators_mobile/lib/features/domain/presentation/domain_subscribers_tab.dart b/mobile/generators_mobile/lib/features/domain/presentation/domain_subscribers_tab.dart
-index b8a996e..3aa9f0c 100644
---- a/mobile/generators_mobile/lib/features/domain/presentation/domain_subscribers_tab.dart
-+++ b/mobile/generators_mobile/lib/features/domain/presentation/domain_subscribers_tab.dart
-@@ -162,6 +162,13 @@ final class _SubscribersTabState extends State<_SubscribersTab> {
-                         '${item.generator.name}${item.route == null ? '' : ' • ${item.route!.name}'}',
-                       ),
-                       const Spacer(),
-+                      IconButton(
-+                        tooltip: 'تعديل المشترك',
-+                        onPressed: () => _save(item),
-+                        icon: const Icon(Icons.edit_outlined),
-+                      ),
-+                      const SizedBox(width: 4),
-                       PopupMenuButton<String>(
-                         tooltip: 'خيارات المشترك',
-                         onSelected: (value) async {
-@@ -184,6 +191,10 @@ final class _SubscribersTabState extends State<_SubscribersTab> {
-                     const SizedBox(height: 6),
-                     Text('${item.phone} • ${item.contractedAmperes} أمبير'),
-+                    const SizedBox(height: 5),
-+                    Text(
-+                      'أضيف: ${formatAppDate(item.createdAt)}',
-+                      style: Theme.of(context).textTheme.bodySmall,
+@@ -78,13 +78,23 @@ final class _GeneratorsTabState extends State<_GeneratorsTab> {
+                 ),
+                 isThreeLine: true,
+                 onTap: () => _edit(item),
+-                trailing: PopupMenuButton<String>(
+-                  onSelected: (value) => value == 'edit' ? _edit(item) : _status(item, value),
+-                  itemBuilder: (_) => const [
+-                    PopupMenuItem(value: 'edit', child: Text('تعديل')),
+-                    PopupMenuItem(value: 'active', child: Text('تفعيل')),
+-                    PopupMenuItem(value: 'maintenance', child: Text('صيانة')),
+-                    PopupMenuItem(value: 'inactive', child: Text('إيقاف')),
++                trailing: Row(
++                  mainAxisSize: MainAxisSize.min,
++                  children: [
++                    IconButton(
++                      tooltip: 'تعديل المولدة',
++                      onPressed: () => _edit(item),
++                      icon: const Icon(Icons.edit_outlined),
++                    ),
++                    PopupMenuButton<String>(
++                      tooltip: 'تغيير الحالة',
++                      onSelected: (value) => _status(item, value),
++                      itemBuilder: (_) => const [
++                        PopupMenuItem(value: 'active', child: Text('تفعيل')),
++                        PopupMenuItem(value: 'maintenance', child: Text('صيانة')),
++                        PopupMenuItem(value: 'inactive', child: Text('إيقاف')),
++                      ],
 +                    ),
                    ],
                  ),
                ),
-diff --git a/mobile/generators_mobile/lib/features/simple_billing/domain/simple_billing_models.dart b/mobile/generators_mobile/lib/features/simple_billing/domain/simple_billing_models.dart
-index 755fa6e..23fd78b 100644
---- a/mobile/generators_mobile/lib/features/simple_billing/domain/simple_billing_models.dart
-+++ b/mobile/generators_mobile/lib/features/simple_billing/domain/simple_billing_models.dart
-@@ -1,3 +1,5 @@
-+enum InvoiceDueState { settled, dueNow, overdue, upcoming }
-+
- final class MonthlyPeriod {
-   const MonthlyPeriod({
-     required this.id,
-@@ -76,6 +78,23 @@ final class MonthlyPeriod {
-       remainingIqd: (data['remaining_iqd'] as num?)?.toInt() ?? 0,
-     );
-   }
-+
-+  InvoiceDueState dueStateAt(DateTime now) {
-+    if (remainingIqd <= 0) return InvoiceDueState.settled;
-+    final parts = periodKey.split('-');
-+    if (parts.length != 2) return InvoiceDueState.dueNow;
-+    final year = int.tryParse(parts[0]);
-+    final month = int.tryParse(parts[1]);
-+    if (year == null || month == null || month < 1 || month > 12) {
-+      return InvoiceDueState.dueNow;
-+    }
-+    final periodStart = DateTime(year, month);
-+    final currentMonth = DateTime(now.year, now.month);
-+    if (periodStart.isBefore(currentMonth)) return InvoiceDueState.overdue;
-+    if (periodStart.isAfter(currentMonth)) return InvoiceDueState.upcoming;
-+    return InvoiceDueState.dueNow;
-+  }
- }
+diff --git a/mobile/generators_mobile/lib/features/domain/presentation/domain_management_page.dart b/mobile/generators_mobile/lib/features/domain/presentation/domain_management_page.dart
+index ac8bda9..c619571 100644
+--- a/mobile/generators_mobile/lib/features/domain/presentation/domain_management_page.dart
++++ b/mobile/generators_mobile/lib/features/domain/presentation/domain_management_page.dart
+@@ -1,6 +1,7 @@
+ import 'package:dio/dio.dart';
+ import 'package:flutter/material.dart';
  
- final class PriceTier {
-@@ -124,6 +143,7 @@ final class PendingBillingSubscriber {
-     required this.contractedAmperes,
-     required this.generatorName,
-     required this.routeName,
-+    this.createdAt,
-   });
- 
-   final String id;
-@@ -132,6 +152,7 @@ final class PendingBillingSubscriber {
-   final int contractedAmperes;
-   final String generatorName;
-   final String? routeName;
-+  final String? createdAt;
- 
-   factory PendingBillingSubscriber.fromApi(Map<String, dynamic> data) {
-     final generator = data['generator'] is Map
-@@ -147,6 +168,7 @@ final class PendingBillingSubscriber {
-       contractedAmperes: (data['contracted_amperes'] as num?)?.toInt() ?? 0,
-       generatorName: generator['name']?.toString() ?? 'غير محدد',
-       routeName: route['name']?.toString(),
-+      createdAt: data['created_at']?.toString(),
-     );
-   }
- }
-@@ -169,6 +191,7 @@ final class MonthlyInvoice {
-     required this.paymentStatus,
-     required this.payments,
-     this.lastPaymentAt,
-+    this.createdAt,
-     this.receiverName,
-     this.receiverRole,
-   });
-@@ -193,6 +216,7 @@ final class MonthlyInvoice {
-   final String paymentStatus;
-   final List<InvoicePayment> payments;
-   final String? lastPaymentAt;
-+  final String? createdAt;
-   final String? receiverName;
-   final String? receiverRole;
- 
-@@ -229,6 +253,7 @@ final class MonthlyInvoice {
-       paymentStatus: data['payment_status']?.toString() ?? data['status']?.toString() ?? 'unpaid',
-       payments: payments,
-       lastPaymentAt: data['last_payment_at']?.toString(),
-+      createdAt: data['created_at']?.toString(),
-       receiverName: data['receiver_name']?.toString(),
-       receiverRole: data['receiver_role']?.toString(),
-     );
-@@ -266,6 +291,7 @@ final class MonthlyInvoice {
-       paymentStatus: paymentStatus,
-       payments: [payment, ...payments.where((item) => item.id != payment.id)],
-       lastPaymentAt: invoice.lastPaymentAt,
-+      createdAt: invoice.createdAt ?? createdAt,
-       receiverName: invoice.receiverName ?? receiverName,
-       receiverRole: invoice.receiverRole ?? receiverRole,
-     );
-@@ -288,6 +314,26 @@ final class MonthlyInvoice {
-       'receiver_role': receiverRole,
-     };
-   }
-+
-+  InvoiceDueState dueStateAt(DateTime now) {
-+    if (remainingAmountIqd <= 0 || paymentStatus == 'paid') {
-+      return InvoiceDueState.settled;
-+    }
-+    final parts = periodKey.split('-');
-+    if (parts.length != 2) return InvoiceDueState.dueNow;
-+    final year = int.tryParse(parts[0]);
-+    final month = int.tryParse(parts[1]);
-+    if (year == null || month == null || month < 1 || month > 12) {
-+      return InvoiceDueState.dueNow;
-+    }
-+    final periodStart = DateTime(year, month);
-+    final currentMonth = DateTime(now.year, now.month);
-+    if (periodStart.isBefore(currentMonth)) return InvoiceDueState.overdue;
-+    if (periodStart.isAfter(currentMonth)) return InvoiceDueState.upcoming;
-+    return InvoiceDueState.dueNow;
-+  }
- }
- 
- final class InvoicePayment {
++import '../../../core/formatters/date_time_formatter.dart';
+ import '../../../core/theme/app_theme.dart';
+ import '../data/domain_repository.dart';
+ import '../domain/generator_domain.dart';
+diff --git a/mobile/generators_mobile/lib/features/domain/presentation/domain_routes_tab.dart b/mobile/generators_mobile/lib/features/domain/presentation/domain_routes_tab.dart
+index 4883e95..5481950 100644
+--- a/mobile/generators_mobile/lib/features/domain/presentation/domain_routes_tab.dart
++++ b/mobile/generators_mobile/lib/features/domain/presentation/domain_routes_tab.dart
+@@ -82,12 +82,22 @@ final class _RoutesTabState extends State<_RoutesTab> {
+                 ),
+                 isThreeLine: true,
+                 onTap: () => _edit(item),
+-                trailing: PopupMenuButton<String>(
+-                  onSelected: (value) => value == 'edit' ? _edit(item) : _status(item, value),
+-                  itemBuilder: (_) => const [
+-                    PopupMenuItem(value: 'edit', child: Text('تعديل')),
+-                    PopupMenuItem(value: 'active', child: Text('تفعيل')),
+-                    PopupMenuItem(value: 'inactive', child: Text('إيقاف')),
++                trailing: Row(
++                  mainAxisSize: MainAxisSize.min,
++                  children: [
++                    IconButton(
++                      tooltip: 'تعديل المسار',
++                      onPressed: () => _edit(item),
++                      icon: const Icon(Icons.edit_outlined),
++                    ),
++                    PopupMenuButton<String>(
++                      tooltip: 'تغيير الحالة',
++                      onSelected: (value) => _status(item, value),
++                      itemBuilder: (_) => const [
++                        PopupMenuItem(value: 'active', child: Text('تفعيل')),
++                        PopupMenuItem(value: 'inactive', child: Text('إيقاف')),
++                      ],
++                    ),
+                   ],
+                 ),
+               ),
+diff --git a/mobile/generators_mobile/lib/features/domain/presentation/domain_subscribers_tab.dart b/mobile/generators_mobile/lib/features/domain/presentation/domain_subscribers_tab.dart
+index b8a996e..40a5dbd 100644
+--- a/mobile/generators_mobile/lib/features/domain/presentation/domain_subscribers_tab.dart
++++ b/mobile/generators_mobile/lib/features/domain/presentation/domain_subscribers_tab.dart
+@@ -110,17 +110,27 @@ final class _SubscribersTabState extends State<_SubscribersTab> {
+                 subtitle: Text(
+                   '${item.accountNumber} • ${item.phone ?? 'بدون هاتف'}\n'
+                   '${item.generator.name} • ${item.route?.name ?? 'بدون مسار'} • ${item.contractedAmperes} أمبير\n'
+-                  '${_statusLabel(item.status)}',
++                  '${_statusLabel(item.status)} • أضيف: ${formatAppDate(item.createdAt)}',
+                 ),
+                 isThreeLine: true,
+                 onTap: () => _edit(item),
+-                trailing: PopupMenuButton<String>(
+-                  onSelected: (value) => value == 'edit' ? _edit(item) : _status(item, value),
+-                  itemBuilder: (_) => const [
+-                    PopupMenuItem(value: 'edit', child: Text('تعديل')),
+-                    PopupMenuItem(value: 'active', child: Text('تفعيل')),
+-                    PopupMenuItem(value: 'suspended', child: Text('تعليق')),
+-                    PopupMenuItem(value: 'disconnected', child: Text('قطع')),
